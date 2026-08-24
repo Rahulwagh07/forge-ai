@@ -1,0 +1,103 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum SessionStatus {
+  QUEUED
+  RUNNING
+  AWAITING_INPUT  // agent paused, sandbox still alive within its idle window
+  DONE
+  FAILED
+}
+
+enum ModelProvider {
+  ANTHROPIC
+  OPENAI
+  GOOGLE
+}
+
+enum StepType {
+  THOUGHT         // model's text/reasoning
+  TOOL_CALL
+  TOOL_RESULT
+  DIFF            // file change, captured at edit time
+  CHECKPOINT      // automatic WIP commit pushed to session branch.. resume marker
+  STEERING        // user follow-up message injected mid-run
+}
+
+model User {
+  id            String               @id @default(cuid())
+  googleId      String               @unique
+  email         String               @unique
+  name          String?
+  avatarUrl     String?
+  createdAt     DateTime             @default(now())
+
+  installations GithubInstallation[]
+  sessions      Session[]
+}
+
+model GithubInstallation {
+  id             String   @id @default(cuid())
+  installationId String   @unique
+  accountLogin   String
+  accountType    String   // "User" | "Organization"
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  createdAt      DateTime @default(now())
+
+  repos          Repo[]
+}
+
+model Repo {
+  id             String             @id @default(cuid())
+  githubRepoId   BigInt             @unique
+  fullName       String
+  defaultBranch  String
+  installationId String
+  installation   GithubInstallation @relation(fields: [installationId], references: [id])
+  updatedAt      DateTime           @updatedAt
+
+  sessions       Session[]
+}
+
+model Session {
+  id          String        @id @default(cuid())
+  prompt      String
+  status      SessionStatus @default(QUEUED)
+  provider    ModelProvider @default(ANTHROPIC)
+  sandboxId   String?
+  branchName  String?
+  prUrl       String?
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  repoId      String
+  repo        Repo          @relation(fields: [repoId], references: [id])
+  createdAt   DateTime      @default(now())
+  lastActiveAt DateTime     @default(now())
+  completedAt DateTime?
+
+  steps       SessionStep[]
+}
+
+model SessionStep {
+  id         String   @id @default(cuid())
+  sessionId  String
+  session    Session  @relation(fields: [sessionId], references: [id])
+  stepNumber Int
+  type       StepType
+  content    Json
+  createdAt  DateTime @default(now())
+
+  @@index([sessionId, stepNumber])
+}
