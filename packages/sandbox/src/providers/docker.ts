@@ -147,6 +147,17 @@ export class DockerSandboxProvider implements SandboxProvider {
         `[sandbox] git clone failed (exit ${result.exitCode}):\n${getLastLines(result.stderr)}`
       )
     }
+
+    if (opts.createBranch) {
+      const created = await handle.runCommand(
+        `git checkout -b ${shellQuote(opts.createBranch)}`
+      )
+      if (created.exitCode !== 0) {
+        throw new Error(
+          `[sandbox] branch creation failed (${opts.createBranch}):\n${getLastLines(created.stderr)}`
+        )
+      }
+    }
   }
 }
 

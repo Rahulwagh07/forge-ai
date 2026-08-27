@@ -18,7 +18,10 @@ export interface RunCommandOptions {
 
 export interface CreateSandboxOptions {
   repoCloneUrl: string
+  //existing branch
   branch?: string
+  //new ranch to create + check out after cloning (fresh sessions)
+  createBranch?: string
   sessionId: string
   env?: Record<string, string>
 }

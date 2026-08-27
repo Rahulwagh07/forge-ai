@@ -1,5 +1,5 @@
 {
-  "name": "agent-core",
+  "name": "github",
   "module": "src/index.ts",
   "type": "module",
   "private": true,
@@ -7,17 +7,14 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "check-types": "tsc --noEmit",
-    "agent-smoke": "tsx tests/agent-smoke.ts"
+    "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "github": "workspace:*",
-    "openai": "^7.5.0",
-    "sandbox": "workspace:*"
+    "@octokit/auth-app": "^7.1.5",
+    "octokit": "^4.1.2"
   },
   "devDependencies": {
-    "@types/bun": "latest",
-    "tsx": "^4.23.12"
+    "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5"
