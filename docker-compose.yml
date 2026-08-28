@@ -11,5 +11,14 @@ services:
     volumes:
       - devin_postgres:/var/lib/postgresql/data
 
+  redis:
+    image: redis:7-alpine
+    container_name: devin-redis
+    ports:
+      - '6380:6379'
+    volumes:
+      - devin_redis:/data
+
 volumes:
   devin_postgres:
+  devin_redis:

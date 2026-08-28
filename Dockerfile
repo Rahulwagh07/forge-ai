@@ -31,8 +31,12 @@ RUN useradd -ms /bin/bash agent
 USER agent
 WORKDIR /workspace
 
+RUN curl -fsSL https://bun.sh/install | bash
+ENV BUN_INSTALL="/home/agent/.bun"
+ENV PATH="$BUN_INSTALL/bin:$PATH"
+
 RUN git config --global --add safe.directory '*' \
- && git config --global init.defaultBranch main
+  && git config --global init.defaultBranch main
 
 # All work happens through `exec`; the container just needs to stay alive.
 ENTRYPOINT ["sleep", "infinity"]
