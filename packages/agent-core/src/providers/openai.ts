@@ -59,30 +59,39 @@ export class OpenAIProvider implements LLMProvider {
   }
 
   async runStep(messages: AgentMessage[], tools: ToolDefinition[]): Promise<ProviderResponse> {
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      messages: messages.map(toOpenAIMessage),
-      tools: tools.length > 0 ? tools.map(toOpenAITool) : undefined,
-    })
+    try {
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages: messages.map(toOpenAIMessage),
+        tools: tools.length > 0 ? tools.map(toOpenAITool) : undefined,
+      })
 
-    const choice = response.choices[0]
-    if (!choice) {
-      throw new Error('[agent-core] OpenAI returned no choices')
-    }
+      const choice = response.choices[0]
+      if (!choice) {
+        throw new Error('[agent-core] OpenAI returned no choices')
+      }
 
-    const message = choice.message
-    const toolCalls: ToolCall[] = (message.tool_calls ?? [])
-      .filter((tc) => tc.type === 'function')
-      .map((tc) => ({
-        id: tc.id,
-        name: tc.function.name,
-        input: safeParseArgs(tc.function.arguments),
-      }))
+      const message = choice.message
+      const toolCalls: ToolCall[] = (message.tool_calls ?? [])
+        .filter((tc) => tc.type === 'function')
+        .map((tc) => ({
+          id: tc.id,
+          name: tc.function.name,
+          input: safeParseArgs(tc.function.arguments),
+        }))
 
-    return {
-      text: message.content ?? undefined,
-      toolCalls,
-      stopReason: mapStopReason(choice.finish_reason),
+      return {
+        text: message.content ?? undefined,
+        toolCalls,
+        stopReason: mapStopReason(choice.finish_reason),
+      }
+    } catch (err) {
+      const e = err as { status?: number; error?: unknown; message?: string }
+      throw new Error(
+        `[agent-core] provider request failed (status ${e.status ?? '?'}): ${
+          e.error ? safeStringify(e.error) : e.message ?? String(err)
+        }`,
+      )
     }
   }
 }
@@ -148,5 +157,14 @@ function mapStopReason(finishReason: string | null): ProviderResponse['stopReaso
       return 'max_tokens'
     default:
       return 'end_turn'
+  }
+}
+
+function safeStringify(value: unknown): string {
+  try {
+    const s = JSON.stringify(value)
+    return s.length > 2000 ? `${s.slice(0, 2000)}...` : s
+  } catch {
+    return String(value)
   }
 }

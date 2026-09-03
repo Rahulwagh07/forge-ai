@@ -2,7 +2,7 @@ import { prisma } from 'db'
 import { installationOctokit, findOrCreatePr, type RepoRef } from 'github'
 import type { SandboxHandle } from 'sandbox'
 import { publishEvent } from './events.ts'
-import { runInRepo, shellQuote, gitAuthFlags } from './git.ts'
+import { runInRepo, shellQuote } from './git.ts'
 import { log } from './log.ts'
 
 export interface ChangeStats {
@@ -49,11 +49,9 @@ async function pushBranch(
   sandbox: SandboxHandle,
   sessionId: string,
   branchName: string,
+  authUrl: string,
 ): Promise<void> {
-  const result = await runInRepo(
-    sandbox,
-    `git ${gitAuthFlags()} push origin ${shellQuote(branchName)}`,
-  )
+  const result = await runInRepo(sandbox, `git push ${shellQuote(authUrl)} ${shellQuote(branchName)}`)
   if (result.exitCode !== 0) {
     throw new Error(
       `Failed to push branch ${branchName} (exit ${result.exitCode}):\n${result.stdout}\n${result.stderr}`,
@@ -71,8 +69,9 @@ export async function pushAndNotify(
   sandbox: SandboxHandle,
   sessionId: string,
   branchName: string,
+  authUrl: string,
 ): Promise<void> {
-  await pushBranch(sandbox, sessionId, branchName)
+  await pushBranch(sandbox, sessionId, branchName, authUrl)
   await publishEvent(sessionId, { type: 'branch_pushed', branch: branchName })
 }
 

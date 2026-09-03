@@ -67,7 +67,7 @@ export function WorkspaceLayout({
   )
   const [items, setItems] = useState<ChatItem[]>(initialItems)
   const [status, setStatus] = useState<SessionStatus>(initialStatus as SessionStatus)
-  const [isThinking, setIsThinking] = useState(isAsk && initialStatus === 'RUNNING')
+  const [isThinking, setIsThinking] = useState(initialStatus === 'RUNNING')
   const [chunks, setChunks] = useState<TerminalChunk[]>([])
   const [branchName, setBranchName] = useState(initialBranchName)
   const [pr, setPr] = useState<PullRequestInfo | undefined>(initialPr)
@@ -87,7 +87,6 @@ export function WorkspaceLayout({
 
   useSessionStream(
     sessionId,
-    isAsk,
     {
       setStatus,
       setIsThinking,
@@ -146,9 +145,9 @@ export function WorkspaceLayout({
   async function handleSend(message: string) {
     setItems((previous) => [
       ...previous,
-      { id: `local-${genId()}`, role: 'user', kind: 'steering', text: message },
+      { id: `local-${genId()}`, role: 'user', kind: 'steering', text: message, createdAt: new Date().toISOString() },
     ])
-    if (isAsk) setIsThinking(true)
+    setIsThinking(true)
     try {
       await sendSteering(sessionId, message)
       // A follow-up on a completed session requeues it; reopen the SSE stream
@@ -158,7 +157,7 @@ export function WorkspaceLayout({
         setStreamReconnect((k) => k + 1)
       }
     } catch (error) {
-      if (isAsk) setIsThinking(false)
+      setIsThinking(false)
       throw error
     }
   }
@@ -166,11 +165,13 @@ export function WorkspaceLayout({
   async function handleRetry() {
     await retrySession(sessionId)
     setStatus('QUEUED')
+    setStreamReconnect((k) => k + 1)
   }
 
   async function handleWake() {
     await wakeSession(sessionId)
     setStatus('QUEUED')
+    setStreamReconnect((k) => k + 1)
   }
 
   const statusText =

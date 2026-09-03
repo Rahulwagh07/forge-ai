@@ -13,3 +13,7 @@ export function timeAgo(createdAt: string): string {
   if (h < 24) return `${h} hours ago`
   return `${Math.floor(h / 24)} days ago`
 }
+
+export function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}

@@ -74,13 +74,14 @@ export async function runSession(sessionId: string): Promise<void> {
     })
 
     log.info('running agent loop', { sessionId })
-    const { result: loopResult } = await runAgentLoopForSession({
+    const { result: loopResult, commitRequested } = await runAgentLoopForSession({
       sessionId,
       prompt: session.prompt,
       isAsk,
       defaultBranch: session.repo.defaultBranch,
       sandbox,
       managedSandbox,
+      authUrl: cloneUrl,
     })
 
     log.info('agent loop completed', { sessionId, stoppedBy: loopResult.stoppedBy })
@@ -97,17 +98,36 @@ export async function runSession(sessionId: string): Promise<void> {
     const keepSessionOpen =
       loopResult.stoppedBy === 'finish_session' || loopResult.stoppedBy === 'timeout'
     if (keepSessionOpen) {
-      await pushAndNotify(sandbox, sessionId, branchName)
+      await pushAndNotify(sandbox, sessionId, branchName, cloneUrl)
       if (!(await finalizeIfNoSteering(sessionId, 'AWAITING_INPUT', null))) {
         await requeueForSteering(sessionId)
         return
+      }
+      if (commitRequested) {
+        const changeStats = await getChangeStats(
+          sandbox,
+          session.repo.defaultBranch,
+          true,
+          cloneUrl,
+        )
+        await finishWithPr({
+          sessionId,
+          branchName,
+          base: session.repo.defaultBranch,
+          prompt: session.prompt,
+          token,
+          repoRef,
+          changeStats,
+        })
+      } else {
+        await publishEvent(sessionId, { type: 'status', status: 'AWAITING_INPUT' })
       }
       touchSandbox(managedSandbox)
       log.info('session paused, sandbox kept', { sessionId })
       return
     }
 
-    const changeStats = await getChangeStats(sandbox, session.repo.defaultBranch, true)
+    const changeStats = await getChangeStats(sandbox, session.repo.defaultBranch, true, cloneUrl)
     if (changeStats.files === 0 && changeStats.additions === 0 && changeStats.deletions === 0) {
       if (!(await finalizeIfNoSteering(sessionId, 'DONE', new Date()))) {
         await requeueForSteering(sessionId)
@@ -123,7 +143,7 @@ export async function runSession(sessionId: string): Promise<void> {
       return
     }
 
-    await pushAndNotify(sandbox, sessionId, branchName)
+    await pushAndNotify(sandbox, sessionId, branchName, cloneUrl)
     if (!(await finalizeIfNoSteering(sessionId, 'AWAITING_INPUT', null))) {
       await requeueForSteering(sessionId)
       return
@@ -151,7 +171,7 @@ export async function runSession(sessionId: string): Promise<void> {
     await publishEvent(sessionId, {
       type: 'status',
       status: 'FAILED',
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: 'The session failed. Please retry.',
     })
 
     throw error

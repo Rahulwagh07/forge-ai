@@ -3,6 +3,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { GitBranchIcon } from '@hugeicons/core-free-icons'
 import { ThinkingBlock } from '@/components/workspace/chat/tool-row'
 import { MessageContent } from '@/components/workspace/chat/message-content'
+import { formatTime } from '@/lib/utils'
 import type { ChatItem, PullRequestInfo } from '@/lib/types'
 
 function ThoughtBlock({ item }: { item: ChatItem }) {
@@ -102,8 +103,13 @@ export function ActivityFeed({
         if (it.role === 'user') {
           return (
             <div key={it.id} className="flex justify-end">
-              <div className="max-w-3/4 rounded-2xl bg-muted px-4 py-2.5 text-sm leading-relaxed text-foreground outline-none">
-                <MessageContent text={it.text ?? ''} />
+              <div className="flex max-w-3/4 flex-col items-end gap-1">
+                <div className="rounded-2xl bg-muted px-4 py-2.5 text-sm leading-relaxed text-foreground outline-none">
+                  <MessageContent text={it.text ?? ''} />
+                </div>
+                {it.createdAt ? (
+                  <span className="px-1 text-xs text-muted-foreground">{formatTime(it.createdAt)}</span>
+                ) : null}
               </div>
             </div>
           )

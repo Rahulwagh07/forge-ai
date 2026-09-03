@@ -6,12 +6,6 @@ export function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`
 }
 
-export function gitAuthFlags(): string {
-  return `-c "remote.origin.url=https://x-access-token:$${AUTH_TOKEN_ENV}@$(git remote get-url origin | sed 's#^https://##')"`
-}
-
-const AUTH_TOKEN_ENV = 'FORGE_GIT_TOKEN'
-
 export async function runInRepo(
   sandbox: SandboxHandle,
   cmd: string,
@@ -27,10 +21,11 @@ export async function getDiffSnapshot(
   sandbox: SandboxHandle,
   defaultBranch: string,
   fetchBase: boolean,
+  authUrl: string,
 ): Promise<string> {
   const base = shellQuote(`origin/${defaultBranch}`)
   const fetch = fetchBase
-    ? `git ${gitAuthFlags()} fetch origin ${shellQuote(`${defaultBranch}:refs/remotes/origin/${defaultBranch}`)} --quiet >/dev/null 2>&1 || true; `
+    ? `git fetch ${shellQuote(authUrl)} ${shellQuote(`${defaultBranch}:refs/remotes/origin/${defaultBranch}`)} --quiet >/dev/null 2>&1 || true; `
     : ''
   const result = await runInRepo(
     sandbox,
@@ -49,13 +44,14 @@ export async function getChangeStats(
   sandbox: SandboxHandle,
   defaultBranch: string,
   fetchBase: boolean,
+  authUrl: string,
 ): Promise<{ files: number; additions: number; deletions: number }> {
   const fetch = fetchBase
-    ? `git ${gitAuthFlags()} fetch origin ${shellQuote(`${defaultBranch}:refs/remotes/origin/${defaultBranch}`)} --quiet >/dev/null 2>&1 || true; `
+    ? `git fetch ${shellQuote(authUrl)} ${shellQuote(`${defaultBranch}:refs/remotes/origin/${defaultBranch}`)} --quiet >/dev/null 2>&1 || true; `
     : ''
   const result = await runInRepo(
     sandbox,
-    `${fetch}git diff --numstat ${shellQuote(`origin/${defaultBranch}`)} --`,
+    `${fetch}git ls-files --others --exclude-standard -z | xargs -0 -r git add -N --; git diff --numstat ${shellQuote(`origin/${defaultBranch}`)} --`,
     { timeoutMs: 30_000 },
   )
   if (result.exitCode !== 0) return { files: 0, additions: 0, deletions: 0 }

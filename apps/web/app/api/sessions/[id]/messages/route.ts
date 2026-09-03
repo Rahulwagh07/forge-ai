@@ -36,7 +36,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Persist steering once; the worker marks it consumed, so resume never re-delivers a live one
     const lastStep = await prisma.sessionStep.findFirst({
       where: { sessionId },
-      orderBy: [{ stepNumber: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [{ stepNumber: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
       select: { stepNumber: true },
     })
     await prisma.sessionStep.create({

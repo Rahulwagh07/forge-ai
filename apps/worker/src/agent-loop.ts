@@ -15,6 +15,7 @@ export interface AgentLoopContext {
   defaultBranch: string
   sandbox: SandboxHandle
   managedSandbox: ManagedSandbox
+  authUrl: string
 }
 
 export interface AgentLoopOutcome {
@@ -28,14 +29,14 @@ export async function runAgentLoopForSession(ctx: AgentLoopContext): Promise<Age
   const provider = new OpenAIProvider()
   const maxSteps = Number(process.env.SESSION_MAX_STEPS ?? 500)
   const wallClockTimeoutMs = Number(process.env.SESSION_WALL_CLOCK_MS ?? 8 * 60 * 60 * 1000)
-  let stepCount = 0
   let commitRequested = false
   let diffBaseFetched = false
 
   const historySteps = await prisma.sessionStep.findMany({
     where: { sessionId },
-    orderBy: [{ stepNumber: 'asc' }, { createdAt: 'asc' }],
+    orderBy: [{ stepNumber: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
   })
+  const baseStepNumber = historySteps.reduce((max, s) => Math.max(max, s.stepNumber), 0)
   const initialMessages =
     historySteps.length > 0
       ? await buildInitialMessages(ctx.prompt, isAsk, historySteps)
@@ -53,7 +54,7 @@ export async function runAgentLoopForSession(ctx: AgentLoopContext): Promise<Age
     getSteeringMessages: async () => {
       const pending = await prisma.sessionStep.findMany({
         where: { sessionId, type: 'STEERING', consumedAt: null },
-        orderBy: [{ stepNumber: 'asc' }, { createdAt: 'asc' }],
+        orderBy: [{ stepNumber: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
       })
       const delivered: string[] = []
       for (const s of pending) {
@@ -70,8 +71,6 @@ export async function runAgentLoopForSession(ctx: AgentLoopContext): Promise<Age
       return delivered
     },
     onStep: async (event) => {
-      stepCount++
-
       // bump lastActiveAt every step (idle window)
       await prisma.session.update({
         where: { id: sessionId },
@@ -82,7 +81,7 @@ export async function runAgentLoopForSession(ctx: AgentLoopContext): Promise<Age
       await prisma.sessionStep.create({
         data: {
           sessionId,
-          stepNumber: stepCount,
+          stepNumber: baseStepNumber + event.stepNumber,
           type: event.toolCalls ? 'TOOL_CALL' : 'THOUGHT',
           content: toJsonValue(sessionId, event),
         },
@@ -91,7 +90,7 @@ export async function runAgentLoopForSession(ctx: AgentLoopContext): Promise<Age
       publishEvent(sessionId, {
         type: 'step',
         step: event,
-        stepNumber: stepCount,
+        stepNumber: baseStepNumber + event.stepNumber,
       }).catch((err) => log.error('failed to publish step', { error: String(err) }))
     },
     onToolOutput: (event) => {
@@ -107,7 +106,7 @@ export async function runAgentLoopForSession(ctx: AgentLoopContext): Promise<Age
       await prisma.sessionStep.create({
         data: {
           sessionId,
-          stepNumber: event.stepNumber,
+          stepNumber: baseStepNumber + event.stepNumber,
           type: 'TOOL_RESULT',
           content: toJsonValue(sessionId, event),
         },
@@ -116,18 +115,23 @@ export async function runAgentLoopForSession(ctx: AgentLoopContext): Promise<Age
 
       // full snapshot keeps the changes correct after edits
       if (['writeFile', 'runCommand', 'commitAndOpenPR'].includes(event.toolName)) {
-        const diff = await getDiffSnapshot(sandbox, ctx.defaultBranch, !diffBaseFetched)
+        const diff = await getDiffSnapshot(
+          sandbox,
+          ctx.defaultBranch,
+          !diffBaseFetched,
+          ctx.authUrl,
+        )
         diffBaseFetched = true
         if (diff) {
           const diffEvent = {
             type: 'diff',
             diff,
-            stepNumber: event.stepNumber,
+            stepNumber: baseStepNumber + event.stepNumber,
           }
           await prisma.sessionStep.create({
             data: {
               sessionId,
-              stepNumber: event.stepNumber,
+              stepNumber: baseStepNumber + event.stepNumber,
               type: 'DIFF',
               content: toJsonValue(sessionId, diffEvent),
             },

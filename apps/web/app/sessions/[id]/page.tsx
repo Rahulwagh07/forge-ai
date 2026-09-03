@@ -17,7 +17,7 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
     where: { id },
     include: {
       repo: true,
-      steps: { orderBy: [{ stepNumber: 'asc' }, { createdAt: 'asc' }] },
+      steps: { orderBy: [{ stepNumber: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }] },
     },
   })
   if (!dbSession) {

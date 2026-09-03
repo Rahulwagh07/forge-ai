@@ -26,7 +26,6 @@ export interface SessionStreamHandlers {
 
 export function useSessionStream(
   sessionId: string,
-  isAsk: boolean,
   handlers: SessionStreamHandlers,
   reconnectKey = 0,
 ): void {
@@ -41,7 +40,7 @@ export function useSessionStream(
           case 'status': {
             const nextStatus = data.status
             handlers.setStatus(nextStatus)
-            if (isAsk) handlers.setIsThinking(nextStatus === 'RUNNING')
+            handlers.setIsThinking(nextStatus === 'RUNNING')
             const error = data.error ?? ''
             if ((nextStatus === 'FAILED' || nextStatus === 'DONE') && error) {
               handlers.setItems((previous) => [
@@ -60,7 +59,7 @@ export function useSessionStream(
             return
           }
           case 'step': {
-            if (isAsk) handlers.setIsThinking(true)
+            handlers.setIsThinking(true)
             const step = data.step
             if (!step) return
             handlers.setItems((previous) => [
@@ -166,5 +165,5 @@ export function useSessionStream(
     return () => es.close()
     // reconnectKey lets callers reopen the stream (e.g. after a follow-up on a
     // completed session that the worker has requeued)
-  }, [sessionId, isAsk, reconnectKey])
+  }, [sessionId, reconnectKey])
 }

@@ -138,12 +138,11 @@ export class DockerSandboxProvider implements SandboxProvider {
       }
     }
 
-    // TODO- find better way to fix this
     // Scrub the installation token out of the persisted origin URL
     await handle
       .runCommand(
         `git remote set-url origin "$(git remote get-url origin | sed -E 's#(https?://)[^/@]*@#\\1#')"`,
-        { cwd: WORKSPACE_DIR },
+        { cwd: REPO_DIR },
       )
       .catch(() => {})
   }
