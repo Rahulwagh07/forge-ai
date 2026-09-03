@@ -4,7 +4,7 @@ import type { RepoRef } from './app-auth.ts'
 export async function findOrCreatePr(
   octokit: Octokit,
   repo: RepoRef,
-  pr: { head: string; base: string; title: string; body?: string }
+  pr: { head: string; base: string; title: string; body?: string },
 ): Promise<{ url: string; created: boolean }> {
   const existing = await octokit.rest.pulls.list({
     owner: repo.owner,

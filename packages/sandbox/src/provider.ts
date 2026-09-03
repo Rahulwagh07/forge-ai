@@ -37,4 +37,7 @@ export interface SandboxHandle {
 
 export interface SandboxProvider {
   create(opts: CreateSandboxOptions): Promise<SandboxHandle>
+  // List live sandboxes across the host keyed by session
+  listSandboxes(): Promise<Array<{ id: string; sessionId: string }>>
+  destroySandbox(id: string): Promise<void>
 }

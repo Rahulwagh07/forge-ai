@@ -15,7 +15,8 @@ datasource db {
 enum SessionStatus {
   QUEUED
   RUNNING
-  AWAITING_INPUT  // agent paused, sandbox still alive within its idle window
+  AWAITING_INPUT // agent paused, sandbox still alive within its idle window
+  PAUSED         // agent paused, sandbox reaped, resumable from pushed branch
   DONE
   FAILED
 }
@@ -26,13 +27,18 @@ enum ModelProvider {
   GOOGLE
 }
 
+enum SessionMode {
+  ASK
+  AGENT
+}
+
 enum StepType {
-  THOUGHT         // model's text/reasoning
+  THOUGHT    // model's text/reasoning
   TOOL_CALL
   TOOL_RESULT
-  DIFF            // file change, captured at edit time
-  CHECKPOINT      // automatic WIP commit pushed to session branch.. resume marker
-  STEERING        // user follow-up message injected mid-run
+  DIFF       // file change, captured at edit time
+  CHECKPOINT // automatic WIP commit pushed to session branch.. resume marker
+  STEERING   // user follow-up message injected mid-run
 }
 
 model User {
@@ -72,22 +78,24 @@ model Repo {
 }
 
 model Session {
-  id          String        @id @default(cuid())
-  prompt      String
-  status      SessionStatus @default(QUEUED)
-  provider    ModelProvider @default(ANTHROPIC)
-  sandboxId   String?
-  branchName  String?
-  prUrl       String?
-  userId      String
-  user        User          @relation(fields: [userId], references: [id])
-  repoId      String
-  repo        Repo          @relation(fields: [repoId], references: [id])
-  createdAt   DateTime      @default(now())
-  lastActiveAt DateTime     @default(now())
-  completedAt DateTime?
+  id           String        @id @default(cuid())
+  prompt       String
+  status       SessionStatus @default(QUEUED)
+  provider     ModelProvider @default(ANTHROPIC)
+  mode         SessionMode   @default(AGENT)
+  sandboxId    String?
+  branchName   String?
+  branchPushed Boolean       @default(false)
+  prUrl        String?
+  userId       String
+  user         User          @relation(fields: [userId], references: [id])
+  repoId       String
+  repo         Repo          @relation(fields: [repoId], references: [id])
+  createdAt    DateTime      @default(now())
+  lastActiveAt DateTime      @default(now())
+  completedAt  DateTime?
 
-  steps       SessionStep[]
+  steps SessionStep[]
 }
 
 model SessionStep {
@@ -97,6 +105,7 @@ model SessionStep {
   stepNumber Int
   type       StepType
   content    Json
+  consumedAt DateTime?
   createdAt  DateTime @default(now())
 
   @@index([sessionId, stepNumber])

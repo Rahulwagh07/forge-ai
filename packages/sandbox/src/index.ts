@@ -18,8 +18,6 @@ export function getSandboxProvider(): SandboxProvider {
     case 'e2b':
       throw new Error('[sandbox] e2b is not implemented yet')
     default:
-      throw new Error(
-        `[sandbox] unknown SANDBOX_PROVIDER: ${process.env.SANDBOX_PROVIDER}`
-      )
+      throw new Error(`[sandbox] unknown SANDBOX_PROVIDER: ${process.env.SANDBOX_PROVIDER}`)
   }
 }

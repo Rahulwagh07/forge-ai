@@ -8,7 +8,6 @@ import {
   installationOctokit,
   loadAppConfigFromEnv,
   mintInstallationToken,
-  parseRepoRef,
   tokenEmbedUrl,
 } from 'github'
 import { OpenAIProvider, runAgentLoop } from '../src/index.ts'
@@ -41,8 +40,7 @@ const gitIdentityEnv = {
   GIT_COMMITTER_EMAIL: SANDBOX_GIT_EMAIL,
 }
 
-const hasGitHubApp =
-  !!process.env.GITHUB_APP_ID && !!process.env.GITHUB_APP_PRIVATE_KEY
+const hasGitHubApp = !!process.env.GITHUB_APP_ID && !!process.env.GITHUB_APP_PRIVATE_KEY
 const SESSION_BRANCH = `agent/session-agent-smoke-${Date.now().toString(36)}`
 
 async function main(): Promise<void> {
@@ -76,7 +74,7 @@ async function main(): Promise<void> {
       userPrompt:
         'Explore this repository, then write a file AGENT_NOTES.md at the repo root summarizing what the project does in 3 bullet points. Commit with a sensible message, then finish.',
       maxSteps: 15,
-      onStep: event => {
+      onStep: (event) => {
         console.log(`\n=== step ${event.stepNumber} ===`)
         if (event.text) console.log(`[thought] ${event.text.slice(0, 300)}`)
         for (const call of event.toolCalls ?? []) {
@@ -86,11 +84,8 @@ async function main(): Promise<void> {
       },
     })
 
-    console.log(
-      `\nloop finished: steps=${result.steps} stoppedBy=${result.stoppedBy}`
-    )
-    if (result.finalText)
-      console.log(`final: ${result.finalText.slice(0, 500)}`)
+    console.log(`\nloop finished: steps=${result.steps} stoppedBy=${result.stoppedBy}`)
+    if (result.finalText) console.log(`final: ${result.finalText.slice(0, 500)}`)
 
     const gitLog = await sandbox.runCommand('git log --oneline -3')
     console.log('\n--- git log ---\n' + gitLog.stdout)
@@ -101,7 +96,7 @@ async function main(): Promise<void> {
       console.log(
         notes.exitCode === 0
           ? 'PASS: AGENT_NOTES.md exists and is committed'
-          : 'FAIL: AGENT_NOTES.md was not created'
+          : 'FAIL: AGENT_NOTES.md was not created',
       )
       return
     }
@@ -131,13 +126,19 @@ async function main(): Promise<void> {
 }
 
 async function defaultBranch(sandbox: SandboxHandle): Promise<string> {
-  const res = await sandbox.runCommand(
-    `git rev-parse --abbrev-ref origin/HEAD | sed 's|origin/||'`
-  )
+  const res = await sandbox.runCommand(`git rev-parse --abbrev-ref origin/HEAD | sed 's|origin/||'`)
   return res.stdout.trim() || 'main'
 }
 
-main().catch(err => {
+function parseRepoRef(cloneUrl: string): { owner: string; repo: string } {
+  const match = /github\.com[/:]([^/]+)\/([^/.]+)/.exec(cloneUrl)
+  if (!match) {
+    throw new Error(`cannot parse owner/repo from: ${cloneUrl}`)
+  }
+  return { owner: match[1]!, repo: match[2]! }
+}
+
+main().catch((err) => {
   console.error(err instanceof Error ? (err.stack ?? err.message) : String(err))
   process.exit(1)
 })

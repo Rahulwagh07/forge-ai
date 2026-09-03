@@ -1,8 +1,11 @@
 -- CreateEnum
-CREATE TYPE "SessionStatus" AS ENUM ('QUEUED', 'RUNNING', 'AWAITING_INPUT', 'DONE', 'FAILED');
+CREATE TYPE "SessionStatus" AS ENUM ('QUEUED', 'RUNNING', 'AWAITING_INPUT', 'PAUSED', 'DONE', 'FAILED');
 
 -- CreateEnum
 CREATE TYPE "ModelProvider" AS ENUM ('ANTHROPIC', 'OPENAI', 'GOOGLE');
+
+-- CreateEnum
+CREATE TYPE "SessionMode" AS ENUM ('ASK', 'AGENT');
 
 -- CreateEnum
 CREATE TYPE "StepType" AS ENUM ('THOUGHT', 'TOOL_CALL', 'TOOL_RESULT', 'DIFF', 'CHECKPOINT', 'STEERING');
@@ -49,8 +52,10 @@ CREATE TABLE "Session" (
     "prompt" TEXT NOT NULL,
     "status" "SessionStatus" NOT NULL DEFAULT 'QUEUED',
     "provider" "ModelProvider" NOT NULL DEFAULT 'ANTHROPIC',
+    "mode" "SessionMode" NOT NULL DEFAULT 'AGENT',
     "sandboxId" TEXT,
     "branchName" TEXT,
+    "branchPushed" BOOLEAN NOT NULL DEFAULT false,
     "prUrl" TEXT,
     "userId" TEXT NOT NULL,
     "repoId" TEXT NOT NULL,
@@ -68,6 +73,7 @@ CREATE TABLE "SessionStep" (
     "stepNumber" INTEGER NOT NULL,
     "type" "StepType" NOT NULL,
     "content" JSONB NOT NULL,
+    "consumedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "SessionStep_pkey" PRIMARY KEY ("id")

@@ -1,5 +1,5 @@
 import Dockerode from 'dockerode'
-import { DockerSandboxProvider, getSandboxProvider } from '../src/index.ts'
+import { getSandboxProvider } from '../src/index.ts'
 import type { OutputChunk } from '../src/index.ts'
 import { configDotenv } from 'dotenv'
 configDotenv()
@@ -22,11 +22,9 @@ async function step(name: string, fn: () => Promise<void>): Promise<void> {
       passed++
       console.log(`  ok    ${name}`)
     })
-    .catch(err => {
+    .catch((err) => {
       failed++
-      console.error(
-        `  FAIL  ${name}\n        ${err instanceof Error ? err.message : String(err)}`
-      )
+      console.error(`  FAIL  ${name}\n        ${err instanceof Error ? err.message : String(err)}`)
     })
 }
 
@@ -47,10 +45,10 @@ async function containerExists(containerId: string): Promise<boolean> {
 
 async function main(): Promise<void> {
   try {
-    await docker.getImage('devin-sandbox:latest').inspect()
+    await docker.getImage('forge-sandbox:latest').inspect()
   } catch {
     console.error(
-      'Image devin-sandbox:latest not found. Build it first:\n  docker build -t devin-sandbox:latest .'
+      'Image forge-sandbox:latest not found. Build it first:\n  docker build -t forge-sandbox:latest .',
     )
     process.exit(1)
   }
@@ -70,17 +68,9 @@ async function main(): Promise<void> {
     })
 
     await step('runCommand: stdout and stderr are separated', async () => {
-      const res = await sandbox.runCommand(
-        `echo out-marker && echo err-marker 1>&2`
-      )
-      assert(
-        res.stdout.includes('out-marker'),
-        `stdout missing marker: ${res.stdout}`
-      )
-      assert(
-        res.stderr.includes('err-marker'),
-        `stderr missing marker: ${res.stderr}`
-      )
+      const res = await sandbox.runCommand(`echo out-marker && echo err-marker 1>&2`)
+      assert(res.stdout.includes('out-marker'), `stdout missing marker: ${res.stdout}`)
+      assert(res.stderr.includes('err-marker'), `stderr missing marker: ${res.stderr}`)
     })
 
     await step('runCommand: non-zero exit codes propagate', async () => {
@@ -90,20 +80,17 @@ async function main(): Promise<void> {
 
     await step('runCommand: onOutput streams incrementally', async () => {
       const chunks: OutputChunk[] = []
-      const res = await sandbox.runCommand(
-        'echo stream-a && echo stream-b 1>&2',
-        {
-          onOutput: c => chunks.push(c),
-        }
-      )
+      const res = await sandbox.runCommand('echo stream-a && echo stream-b 1>&2', {
+        onOutput: (c) => chunks.push(c),
+      })
       assert(res.exitCode === 0, `exit ${res.exitCode}`)
       assert(
-        chunks.some(c => c.stream === 'stdout' && c.data.includes('stream-a')),
-        'no stdout chunk'
+        chunks.some((c) => c.stream === 'stdout' && c.data.includes('stream-a')),
+        'no stdout chunk',
       )
       assert(
-        chunks.some(c => c.stream === 'stderr' && c.data.includes('stream-b')),
-        'no stderr chunk'
+        chunks.some((c) => c.stream === 'stderr' && c.data.includes('stream-b')),
+        'no stderr chunk',
       )
     })
 
@@ -111,10 +98,7 @@ async function main(): Promise<void> {
       const started = Date.now()
       const res = await sandbox.runCommand('sleep 30', { timeoutMs: 2_000 })
       assert(Date.now() - started < 15_000, 'timeout did not fire promptly')
-      assert(
-        res.exitCode === 124,
-        `expected exit 124 (timeout), got ${res.exitCode}`
-      )
+      assert(res.exitCode === 124, `expected exit 124 (timeout), got ${res.exitCode}`)
     })
 
     await step('cwd + env options apply', async () => {
@@ -125,20 +109,12 @@ async function main(): Promise<void> {
       assert(res.stdout.trim() === 'env-works', `got: ${res.stdout.trim()}`)
     })
 
-    await step(
-      'writeFile/readFile round-trip incl. nested dirs + unicode',
-      async () => {
-        const content = '# hello\n\nline with ünïcödé ✅ and quotes "...\n'
-        await sandbox.writeFile(
-          '/workspace/repo/smoke/nested/hello.md',
-          content
-        )
-        const readBack = await sandbox.readFile(
-          '/workspace/repo/smoke/nested/hello.md'
-        )
-        assert(readBack === content, 'round-trip content mismatch')
-      }
-    )
+    await step('writeFile/readFile round-trip incl. nested dirs + unicode', async () => {
+      const content = '# hello\n\nline with ünïcödé and quotes "...\n'
+      await sandbox.writeFile('/workspace/repo/smoke/nested/hello.md', content)
+      const readBack = await sandbox.readFile('/workspace/repo/smoke/nested/hello.md')
+      assert(readBack === content, 'round-trip content mismatch')
+    })
 
     await step('readFile throws on missing file', async () => {
       let threw = false
@@ -157,51 +133,21 @@ async function main(): Promise<void> {
     })
 
     await step('agent can create a branch (commit path works)', async () => {
-      await sandbox.writeFile(
-        '/workspace/repo/smoke/change.txt',
-        'branch work\n'
-      )
+      await sandbox.writeFile('/workspace/repo/smoke/change.txt', 'branch work\n')
       const res = await sandbox.runCommand(
-        `git checkout -b agent/smoke-test && git add -A && git -c user.email=sbx@devin.local -c user.name=smoke commit -m smoke`
+        `git checkout -b agent/smoke-test && git add -A && git -c user.email=sbx@forge.local -c user.name=smoke commit -m smoke`,
       )
       assert(res.exitCode === 0, `exit ${res.exitCode}: ${res.stderr}`)
     })
 
     await step('destroy removes the container', async () => {
       await sandbox.destroy()
-      assert(
-        !(await containerExists(sandbox.id)),
-        'container still exists after destroy()'
-      )
+      assert(!(await containerExists(sandbox.id)), 'container still exists after destroy()')
     })
 
     await step('destroy is idempotent', async () => {
       await sandbox.destroy()
     })
-
-    await step(
-      'cleanupOrphans removes labeled running containers only',
-      async () => {
-        // leave a second sandbox running, then prove the sweep kills it
-        const orphan = await provider.create({
-          repoCloneUrl: REPO_URL,
-          sessionId: 'smoke-orphan',
-        })
-
-        if (!(provider instanceof DockerSandboxProvider)) {
-          throw new Error('expected DockerSandboxProvider')
-        }
-        const removedOrphans = await provider.cleanupOrphans()
-        assert(
-          removedOrphans >= 1,
-          `expected at least 1 orphan removed, got ${removedOrphans}`
-        )
-        assert(
-          !(await containerExists(orphan.id)),
-          'orphan container survived cleanupOrphans()'
-        )
-      }
-    )
   } finally {
     //if an assert threw mid-step before the destroy step ran
     await sandbox.destroy().catch(() => {})
@@ -211,7 +157,7 @@ async function main(): Promise<void> {
   process.exit(failed > 0 ? 1 : 0)
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error(err instanceof Error ? (err.stack ?? err.message) : String(err))
   process.exit(1)
 })

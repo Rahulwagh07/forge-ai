@@ -28,8 +28,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'listDir',
-    description:
-      'List entries of a directory (files and folders, one per line).',
+    description: 'List entries of a directory (files and folders, one per line).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -83,8 +82,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       properties: {
         reason: {
           type: 'string',
-          description:
-            'Short summary of what was done / what you are waiting for',
+          description: 'Short summary of what was done / what you are waiting for',
         },
       },
       required: ['reason'],

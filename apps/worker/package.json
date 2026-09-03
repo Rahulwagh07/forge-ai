@@ -1,10 +1,24 @@
 {
   "name": "worker",
-  "module": "index.ts",
+  "module": "src/index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "dev": "node --import tsx/esm --watch src/index.ts",
+    "start": "node --import tsx/esm src/index.ts",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "redis": "workspace:*",
+    "agent-core": "workspace:*",
+    "sandbox": "workspace:*",
+    "github": "workspace:*",
+    "db": "workspace:*",
+    "dotenv": "^17.4.2"
+  },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "tsx": "^4.20.0"
   },
   "peerDependencies": {
     "typescript": "^5"

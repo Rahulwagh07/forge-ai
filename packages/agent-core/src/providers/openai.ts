@@ -42,18 +42,14 @@ function resolveConfig(): ResolvedConfig {
     }
   }
 
-  throw new Error(
-    '[agent-core] no LLM credentials: set OPENAI_API_KEY or OPENROUTER_API_KEY'
-  )
+  throw new Error('[agent-core] no LLM credentials: set OPENAI_API_KEY or OPENROUTER_API_KEY')
 }
 
 export class OpenAIProvider implements LLMProvider {
   private readonly client: OpenAI
   private readonly model: string
 
-  constructor(
-    opts: { apiKey?: string; baseURL?: string; model?: string } = {}
-  ) {
+  constructor(opts: { apiKey?: string; baseURL?: string; model?: string } = {}) {
     const resolved = resolveConfig()
     this.client = new OpenAI({
       apiKey: opts.apiKey ?? resolved.apiKey,
@@ -62,10 +58,7 @@ export class OpenAIProvider implements LLMProvider {
     this.model = opts.model ?? resolved.model
   }
 
-  async runStep(
-    messages: AgentMessage[],
-    tools: ToolDefinition[]
-  ): Promise<ProviderResponse> {
+  async runStep(messages: AgentMessage[], tools: ToolDefinition[]): Promise<ProviderResponse> {
     const response = await this.client.chat.completions.create({
       model: this.model,
       messages: messages.map(toOpenAIMessage),
@@ -79,8 +72,8 @@ export class OpenAIProvider implements LLMProvider {
 
     const message = choice.message
     const toolCalls: ToolCall[] = (message.tool_calls ?? [])
-      .filter(tc => tc.type === 'function')
-      .map(tc => ({
+      .filter((tc) => tc.type === 'function')
+      .map((tc) => ({
         id: tc.id,
         name: tc.function.name,
         input: safeParseArgs(tc.function.arguments),
@@ -105,7 +98,7 @@ function toOpenAIMessage(msg: AgentMessage): ChatCompletionMessageParam {
         return {
           role: 'assistant',
           content: msg.content || null,
-          tool_calls: msg.toolCalls.map(tc => ({
+          tool_calls: msg.toolCalls.map((tc) => ({
             id: tc.id,
             type: 'function' as const,
             function: {
@@ -137,23 +130,17 @@ function toOpenAITool(def: ToolDefinition): ChatCompletionTool {
   }
 }
 
-function safeParseArgs(
-  raw: string | null | undefined
-): Record<string, unknown> {
+function safeParseArgs(raw: string | null | undefined): Record<string, unknown> {
   if (!raw) return {}
   try {
     const parsed = JSON.parse(raw)
-    return typeof parsed === 'object' && parsed !== null
-      ? (parsed as Record<string, unknown>)
-      : {}
+    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : {}
   } catch {
     return {}
   }
 }
 
-function mapStopReason(
-  finishReason: string | null
-): ProviderResponse['stopReason'] {
+function mapStopReason(finishReason: string | null): ProviderResponse['stopReason'] {
   switch (finishReason) {
     case 'tool_calls':
       return 'tool_use'

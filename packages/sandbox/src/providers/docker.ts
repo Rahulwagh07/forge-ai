@@ -9,19 +9,14 @@ import type {
   SandboxHandle,
   SandboxProvider,
 } from '../provider.ts'
-import {
-  getFileName,
-  getLastLines,
-  getParentDirectory,
-  shellQuote,
-} from '../utils.ts'
+import { getFileName, getLastLines, getParentDirectory, shellQuote } from '../utils.ts'
 
 const WORKSPACE_DIR = '/workspace'
 const REPO_DIR = '/workspace/repo'
-const DEFAULT_IMAGE = process.env.SANDBOX_IMAGE ?? 'devin-sandbox:latest'
-const LABEL_APP = 'app.devin.sandbox'
-const LABEL_SESSION = 'app.devin.session-id'
-const DEFAULT_CMD_TIMEOUT_MS = 300_000
+const DEFAULT_IMAGE = process.env.SANDBOX_IMAGE ?? 'forge-sandbox:latest'
+const LABEL_APP = 'app.forge.sandbox'
+const LABEL_SESSION = 'app.forge.session-id'
+const DEFAULT_CMD_TIMEOUT_MS = 30 * 60 * 1000
 const CLONE_TIMEOUT_MS = 120_000
 const MEMORY_BYTES = Number(process.env.SANDBOX_MEMORY_BYTES ?? 2 * 1024 ** 3)
 const NANOCPUS = Number(process.env.SANDBOX_NANOCPUS ?? 1_000_000_000) // 1e9 NanoCpus = 1 CPU
@@ -41,14 +36,12 @@ export class DockerSandboxProvider implements SandboxProvider {
     }
     await this.ensureImage()
 
-    const containerEnvVars = Object.entries(opts.env ?? {}).map(
-      ([k, v]) => `${k}=${v}`
-    )
+    const containerEnvVars = Object.entries(opts.env ?? {}).map(([k, v]) => `${k}=${v}`)
 
     let container: Dockerode.Container
     try {
       container = await this.docker.createContainer({
-        name: `devin-sbx-${opts.sessionId}-${Date.now().toString(36)}`,
+        name: `forge-sbx-${opts.sessionId}-${Date.now().toString(36)}`,
         Image: this.image,
         Labels: {
           [LABEL_APP]: 'true',
@@ -63,9 +56,7 @@ export class DockerSandboxProvider implements SandboxProvider {
         },
       })
     } catch (err) {
-      throw new Error(
-        `[sandbox] failed to create container (is Docker running?): ${String(err)}`
-      )
+      throw new Error(`[sandbox] failed to create container (is Docker running?): ${String(err)}`)
     }
 
     try {
@@ -73,9 +64,7 @@ export class DockerSandboxProvider implements SandboxProvider {
     } catch (err) {
       // don't leak a created-but-unstartable container
       await container.remove({ force: true }).catch(() => {})
-      throw new Error(
-        `[sandbox] failed to start sandbox container: ${String(err)}`
-      )
+      throw new Error(`[sandbox] failed to start sandbox container: ${String(err)}`)
     }
 
     const handle = new DockerSandboxHandle(this.docker, container)
@@ -90,21 +79,21 @@ export class DockerSandboxProvider implements SandboxProvider {
     return handle
   }
 
-  async cleanupOrphans(): Promise<number> {
+  async listSandboxes(): Promise<Array<{ id: string; sessionId: string }>> {
     const containers = await this.docker.listContainers({
       all: true,
       filters: JSON.stringify({ label: [LABEL_APP] }),
     })
-    let removedOrphans = 0
-    for (const containerInfo of containers) {
-      try {
-        await this.docker.getContainer(containerInfo.Id).remove({ force: true })
-        removedOrphans++
-      } catch {
-        // already gone - fine
-      }
-    }
-    return removedOrphans
+    return containers
+      .map((containerInfo) => {
+        const sessionId = containerInfo.Labels?.[LABEL_SESSION]
+        return sessionId ? { id: containerInfo.Id, sessionId } : null
+      })
+      .filter((entry): entry is { id: string; sessionId: string } => entry !== null)
+  }
+
+  async destroySandbox(id: string): Promise<void> {
+    await this.docker.getContainer(id).remove({ force: true })
   }
 
   private async ensureImage(): Promise<void> {
@@ -117,25 +106,17 @@ export class DockerSandboxProvider implements SandboxProvider {
     }
 
     await new Promise<void>((resolve, reject) => {
-      this.docker.pull(
-        this.image,
-        (pullErr: Error | null, stream: NodeJS.ReadableStream) => {
-          if (pullErr) return reject(pullErr)
-          this.docker.modem.followProgress(stream as never, progressErr =>
-            progressErr ? reject(progressErr) : resolve()
-          )
-        }
-      )
+      this.docker.pull(this.image, (pullErr: Error | null, stream: NodeJS.ReadableStream) => {
+        if (pullErr) return reject(pullErr)
+        this.docker.modem.followProgress(stream as never, (progressErr) =>
+          progressErr ? reject(progressErr) : resolve(),
+        )
+      })
     })
   }
 
-  private async cloneRepo(
-    handle: SandboxHandle,
-    opts: CreateSandboxOptions
-  ): Promise<void> {
-    const branchFlag = opts.branch
-      ? `--branch ${shellQuote(opts.branch)} --single-branch `
-      : ''
+  private async cloneRepo(handle: SandboxHandle, opts: CreateSandboxOptions): Promise<void> {
+    const branchFlag = opts.branch ? `--branch ${shellQuote(opts.branch)} --single-branch ` : ''
     const cloneCmd = `git clone ${branchFlag}${shellQuote(opts.repoCloneUrl)} ${shellQuote(REPO_DIR)}`
 
     const result = await handle.runCommand(cloneCmd, {
@@ -144,20 +125,27 @@ export class DockerSandboxProvider implements SandboxProvider {
     })
     if (result.exitCode !== 0) {
       throw new Error(
-        `[sandbox] git clone failed (exit ${result.exitCode}):\n${getLastLines(result.stderr)}`
+        `[sandbox] git clone failed (exit ${result.exitCode}):\n${getLastLines(result.stderr)}`,
       )
     }
 
     if (opts.createBranch) {
-      const created = await handle.runCommand(
-        `git checkout -b ${shellQuote(opts.createBranch)}`
-      )
+      const created = await handle.runCommand(`git checkout -b ${shellQuote(opts.createBranch)}`)
       if (created.exitCode !== 0) {
         throw new Error(
-          `[sandbox] branch creation failed (${opts.createBranch}):\n${getLastLines(created.stderr)}`
+          `[sandbox] branch creation failed (${opts.createBranch}):\n${getLastLines(created.stderr)}`,
         )
       }
     }
+
+    // TODO- find better way to fix this
+    // Scrub the installation token out of the persisted origin URL
+    await handle
+      .runCommand(
+        `git remote set-url origin "$(git remote get-url origin | sed -E 's#(https?://)[^/@]*@#\\1#')"`,
+        { cwd: WORKSPACE_DIR },
+      )
+      .catch(() => {})
   }
 }
 
@@ -166,28 +154,26 @@ class DockerSandboxHandle implements SandboxHandle {
 
   constructor(
     private readonly docker: Dockerode,
-    private readonly container: Dockerode.Container
+    private readonly container: Dockerode.Container,
   ) {
     this.id = container.id.slice(0, 12)
   }
 
-  async runCommand(
-    cmd: string,
-    opts: RunCommandOptions = {}
-  ): Promise<CommandResult> {
+  async runCommand(cmd: string, opts: RunCommandOptions = {}): Promise<CommandResult> {
     // GNU `timeout` wraps the command so hung processes can't pin the session;
     // exit code 124 means we killed it.
-    const timeoutSecs = Math.max(
-      1,
-      Math.ceil((opts.timeoutMs ?? DEFAULT_CMD_TIMEOUT_MS) / 1000)
-    )
+    const timeoutSecs = Math.max(1, Math.ceil((opts.timeoutMs ?? DEFAULT_CMD_TIMEOUT_MS) / 1000))
+
+    // Only override env when one is explicitly provided; otherwise let the
+    // exec inherit the container env
+    const envVars = opts.env ? Object.entries(opts.env).map(([k, v]) => `${k}=${v}`) : undefined
 
     const exec = await this.container.exec({
       Cmd: ['timeout', `${timeoutSecs}s`, 'sh', '-c', cmd],
       AttachStdout: true,
       AttachStderr: true,
       WorkingDir: opts.cwd ?? REPO_DIR,
-      Env: Object.entries(opts.env ?? {}).map(([k, v]) => `${k}=${v}`),
+      Env: envVars,
     })
 
     const stream = await exec.start({ hijack: true, stdin: false })
@@ -207,7 +193,7 @@ class DockerSandboxHandle implements SandboxHandle {
     this.docker.modem.demuxStream(
       stream,
       outputSink('stdout', stdoutChunks),
-      outputSink('stderr', stderrChunks)
+      outputSink('stderr', stderrChunks),
     )
 
     await new Promise<void>((resolve, reject) => {
@@ -232,9 +218,7 @@ class DockerSandboxHandle implements SandboxHandle {
       cwd: WORKSPACE_DIR,
     })
     if (result.exitCode !== 0) {
-      throw new Error(
-        `[sandbox] readFile(${path}) failed:\n${getLastLines(result.stderr)}`
-      )
+      throw new Error(`[sandbox] readFile(${path}) failed:\n${getLastLines(result.stderr)}`)
     }
     return Buffer.from(result.stdout.trim(), 'base64').toString('utf8')
   }
@@ -245,22 +229,15 @@ class DockerSandboxHandle implements SandboxHandle {
    */
   async writeFile(path: string, content: string): Promise<void> {
     if (!path.startsWith('/') || getFileName(path) === '') {
-      throw new Error(
-        `[sandbox] writeFile expects an absolute file path, got: ${path}`
-      )
+      throw new Error(`[sandbox] writeFile expects an absolute file path, got: ${path}`)
     }
 
     const dir = getParentDirectory(path)
-    const mkdirResult = await this.runCommand(
-      `mkdir -p -- ${shellQuote(dir)}`,
-      {
-        cwd: WORKSPACE_DIR,
-      }
-    )
+    const mkdirResult = await this.runCommand(`mkdir -p -- ${shellQuote(dir)}`, {
+      cwd: WORKSPACE_DIR,
+    })
     if (mkdirResult.exitCode !== 0) {
-      throw new Error(
-        `[sandbox] writeFile mkdir failed:\n${getLastLines(mkdirResult.stderr)}`
-      )
+      throw new Error(`[sandbox] writeFile mkdir failed:\n${getLastLines(mkdirResult.stderr)}`)
     }
 
     const pack = tar.pack()
@@ -270,7 +247,7 @@ class DockerSandboxHandle implements SandboxHandle {
         size: Buffer.byteLength(content, 'utf8'),
         mode: 0o644,
       },
-      Buffer.from(content, 'utf8')
+      Buffer.from(content, 'utf8'),
     )
     pack.finalize()
 
@@ -282,13 +259,11 @@ class DockerSandboxHandle implements SandboxHandle {
       cwd: WORKSPACE_DIR,
     })
     if (result.exitCode !== 0) {
-      throw new Error(
-        `[sandbox] listDir(${path}) failed:\n${getLastLines(result.stderr)}`
-      )
+      throw new Error(`[sandbox] listDir(${path}) failed:\n${getLastLines(result.stderr)}`)
     }
     return result.stdout
       .split('\n')
-      .map(line => line.trim())
+      .map((line) => line.trim())
       .filter(Boolean)
   }
 

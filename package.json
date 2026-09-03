@@ -1,13 +1,15 @@
 {
-  "name": "devin",
+  "name": "forge",
   "private": true,
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "lint": "turbo run lint",
+    "lint": "turbo run lint && prettier --check \"**/*.{ts,tsx,md}\"",
+    "lint:fix": "turbo run lint -- --fix",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
-    "sandbox:image": "docker build -t devin-sandbox:latest .",
+    "sandbox:image": "docker build -t forge-sandbox:latest .",
     "sandbox:smoke": "bun run --cwd packages/sandbox smoke"
   },
   "devDependencies": {

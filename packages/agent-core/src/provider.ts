@@ -31,8 +31,5 @@ export type AgentMessage =
     }
 
 export interface LLMProvider {
-  runStep(
-    messages: AgentMessage[],
-    tools: ToolDefinition[]
-  ): Promise<ProviderResponse>
+  runStep(messages: AgentMessage[], tools: ToolDefinition[]): Promise<ProviderResponse>
 }

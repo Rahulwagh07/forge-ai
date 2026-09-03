@@ -18,9 +18,7 @@ export function loadAppConfigFromEnv(): GitHubAppConfig {
   const appId = process.env.GITHUB_APP_ID
   const privateKey = process.env.GITHUB_APP_PRIVATE_KEY
   if (!appId || !privateKey) {
-    throw new Error(
-      '[github] GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY are required'
-    )
+    throw new Error('[github] GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY are required')
   }
   return { appId, privateKey: normalizePem(privateKey) }
 }
@@ -29,12 +27,13 @@ function normalizePem(key: string): string {
   return key.replaceAll('\\n', '\n')
 }
 
-function appOctokit(config: GitHubAppConfig): Octokit {
+export function appOctokit(config: GitHubAppConfig, installationId?: number): Octokit {
   return new Octokit({
     authStrategy: createAppAuth,
     auth: {
       appId: config.appId,
       privateKey: config.privateKey,
+      ...(installationId !== undefined ? { installationId } : {}),
     },
   })
 }
@@ -50,11 +49,10 @@ export interface RepoRef {
  */
 export async function mintInstallationToken(
   config: GitHubAppConfig,
-  repo: RepoRef
+  repo: RepoRef,
 ): Promise<string> {
   const octokit = appOctokit(config)
 
-  // find the installation for exactly this repo.
   const installation = await octokit.rest.apps.getRepoInstallation({
     owner: repo.owner,
     repo: repo.repo,
@@ -74,14 +72,6 @@ export async function mintInstallationToken(
 
 export function installationOctokit(token: string): Octokit {
   return new Octokit({ auth: token })
-}
-
-export function parseRepoRef(cloneUrl: string): RepoRef {
-  const match = /github\.com[/:]([^/]+)\/([^/.]+)/.exec(cloneUrl)
-  if (!match) {
-    throw new Error(`[github] cannot parse owner/repo from: ${cloneUrl}`)
-  }
-  return { owner: match[1]!, repo: match[2]! }
 }
 
 export function tokenEmbedUrl(token: string, repo: RepoRef): string {

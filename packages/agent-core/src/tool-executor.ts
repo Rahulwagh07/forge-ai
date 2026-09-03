@@ -1,4 +1,4 @@
-import type { SandboxHandle } from 'sandbox'
+import type { OutputChunk, SandboxHandle } from 'sandbox'
 import type { ToolCall } from './provider.ts'
 import { MAX_TOOL_OUTPUT_CHARS } from './constants.ts'
 
@@ -7,12 +7,22 @@ export interface ToolOutcome {
   isError: boolean
 }
 
+export interface ToolExecutionOptions {
+  onOutput?: (chunk: OutputChunk) => void
+  // When true, side-effecting tools (writeFile, commitAndOpenPR, finishSession) are blocked
+  readOnly?: boolean
+}
+
+// tools that mutate state: blocked in read-only (ASK) mode
+const WRITE_TOOLS = new Set(['writeFile', 'commitAndOpenPR', 'finishSession'])
+
 export async function executeToolCall(
   sandbox: SandboxHandle,
-  call: ToolCall
+  call: ToolCall,
+  options: ToolExecutionOptions = {},
 ): Promise<ToolOutcome> {
   try {
-    return await dispatch(sandbox, call)
+    return await dispatch(sandbox, call, options)
   } catch (err) {
     return {
       output: truncate(err instanceof Error ? err.message : String(err)),
@@ -23,8 +33,12 @@ export async function executeToolCall(
 
 async function dispatch(
   sandbox: SandboxHandle,
-  call: ToolCall
+  call: ToolCall,
+  options: ToolExecutionOptions,
 ): Promise<ToolOutcome> {
+  if (options.readOnly && WRITE_TOOLS.has(call.name)) {
+    return badInput(`blocked: ${call.name} is not available in read-only (ASK) mode`)
+  }
   switch (call.name) {
     case 'readFile': {
       const path = requireString(call.input.path)
@@ -52,11 +66,11 @@ async function dispatch(
     case 'runCommand': {
       const cmd = requireString(call.input.cmd)
       if (!cmd) return badInput('runCommand requires `cmd`')
-      const timeoutMs =
-        typeof call.input.timeoutMs === 'number'
-          ? call.input.timeoutMs
-          : undefined
-      const res = await sandbox.runCommand(cmd, { timeoutMs })
+      const timeoutMs = typeof call.input.timeoutMs === 'number' ? call.input.timeoutMs : undefined
+      const res = await sandbox.runCommand(cmd, {
+        timeoutMs,
+        onOutput: options.onOutput,
+      })
       const parts = [
         `exitCode: ${res.exitCode}`,
         res.stdout && `stdout:\n${truncate(res.stdout)}`,
@@ -69,10 +83,7 @@ async function dispatch(
       return commitAndOpenPR(sandbox, call)
 
     case 'finishSession': {
-      const reason =
-        typeof call.input.reason === 'string'
-          ? call.input.reason
-          : '(no reason given)'
+      const reason = typeof call.input.reason === 'string' ? call.input.reason : '(no reason given)'
       return success(`session paused: ${reason}`)
     }
 
@@ -81,18 +92,14 @@ async function dispatch(
   }
 }
 
-async function commitAndOpenPR(
-  sandbox: SandboxHandle,
-  call: ToolCall
-): Promise<ToolOutcome> {
+async function commitAndOpenPR(sandbox: SandboxHandle, call: ToolCall): Promise<ToolOutcome> {
   const commitMessage = requireString(call.input.commitMessage)
-  if (!commitMessage)
-    return badInput('commitAndOpenPR requires `commitMessage`')
+  if (!commitMessage) return badInput('commitAndOpenPR requires `commitMessage`')
 
   const quoted = commitMessage.replaceAll("'", `'\\''`)
   const res = await sandbox.runCommand(
     `git add -A && git diff --cached --quiet || git commit -m '${quoted}'`,
-    {}
+    {},
   )
   if (res.exitCode !== 0) {
     return {
@@ -104,7 +111,7 @@ async function commitAndOpenPR(
   const branch = await sandbox.runCommand('git rev-parse --abbrev-ref HEAD')
   const branchName = branch.stdout.trim()
   return success(
-    `committed "${commitMessage}" on branch ${branchName}. The platform pushes this branch and keeps the pull request up to date - no further git action needed.`
+    `committed "${commitMessage}" on branch ${branchName}. The platform pushes this branch and keeps the pull request up to date - no further git action needed.`,
   )
 }
 
