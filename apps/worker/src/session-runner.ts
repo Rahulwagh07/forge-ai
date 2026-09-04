@@ -47,6 +47,7 @@ export async function runSession(sessionId: string): Promise<void> {
     setSessionToken(sessionId, token)
     const cloneUrl = tokenEmbedUrl(token, repoRef)
     const branchName = session.branchName ?? `agent/session-${sessionId}`
+    const baseBranch = session.baseBranch ?? session.repo.defaultBranch
 
     const acquired = await acquireSandbox({
       sessionId,
@@ -54,6 +55,7 @@ export async function runSession(sessionId: string): Promise<void> {
       isResume,
       repoCloneUrl: cloneUrl,
       branchName,
+      baseBranch,
       gitToken: token,
     })
     sandbox = acquired.sandbox
@@ -78,7 +80,7 @@ export async function runSession(sessionId: string): Promise<void> {
       sessionId,
       prompt: session.prompt,
       isAsk,
-      defaultBranch: session.repo.defaultBranch,
+      defaultBranch: baseBranch,
       sandbox,
       managedSandbox,
       authUrl: cloneUrl,
@@ -106,14 +108,14 @@ export async function runSession(sessionId: string): Promise<void> {
       if (commitRequested) {
         const changeStats = await getChangeStats(
           sandbox,
-          session.repo.defaultBranch,
+          baseBranch,
           true,
           cloneUrl,
         )
         await finishWithPr({
           sessionId,
           branchName,
-          base: session.repo.defaultBranch,
+          base: baseBranch,
           prompt: session.prompt,
           token,
           repoRef,
@@ -127,7 +129,7 @@ export async function runSession(sessionId: string): Promise<void> {
       return
     }
 
-    const changeStats = await getChangeStats(sandbox, session.repo.defaultBranch, true, cloneUrl)
+    const changeStats = await getChangeStats(sandbox, baseBranch, true, cloneUrl)
     if (changeStats.files === 0 && changeStats.additions === 0 && changeStats.deletions === 0) {
       if (!(await finalizeIfNoSteering(sessionId, 'DONE', new Date()))) {
         await requeueForSteering(sessionId)
@@ -151,7 +153,7 @@ export async function runSession(sessionId: string): Promise<void> {
     await finishWithPr({
       sessionId,
       branchName,
-      base: session.repo.defaultBranch,
+      base: baseBranch,
       prompt: session.prompt,
       token,
       repoRef,

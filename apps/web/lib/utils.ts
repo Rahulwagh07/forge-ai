@@ -23,3 +23,9 @@ export function splitPath(path: string): { name: string; dir: string } {
   if (index < 0) return { name: path, dir: '' }
   return { name: path.slice(index + 1), dir: path.slice(0, index) }
 }
+
+export function isValidBranchName(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 255) return false
+  if (value.includes('..') || value.startsWith('/') || value.endsWith('/')) return false
+  return /^[A-Za-z0-9._/-]+$/.test(value)
+}

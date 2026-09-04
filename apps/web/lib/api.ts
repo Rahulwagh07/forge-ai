@@ -24,12 +24,17 @@ export function createSession(input: {
   repoId: string
   prompt: string
   mode: 'ASK' | 'AGENT'
+  baseBranch?: string
 }): Promise<{ sessionId: string; status: string }> {
   return request(API.sessions, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     data: input,
   })
+}
+
+export function listBranches(repoId: string): Promise<{ defaultBranch: string; branches: string[] }> {
+  return request(`${API.repos}/${repoId}/branches`)
 }
 
 export function listSessions(): Promise<{ sessions: SessionSummary[] }> {

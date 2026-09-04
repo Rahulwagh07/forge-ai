@@ -1,11 +1,12 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Folder01Icon, GitBranchIcon } from '@hugeicons/core-free-icons'
+import { Folder01Icon } from '@hugeicons/core-free-icons'
 import { RepoSelectModal } from '@/components/workspace/home/repo-select-modal'
+import { BranchSelect } from '@/components/workspace/home/branch-select'
 import { Composer } from '@/components/workspace/chat/composer'
-import { createSession, syncRepositories } from '@/lib/api'
+import { createSession, listBranches, syncRepositories } from '@/lib/api'
 import { DEFAULT_BRANCH_LABEL, GITHUB_INSTALLATIONS_URL } from '@/lib/constants'
 import {
   Dialog,
@@ -32,8 +33,35 @@ export function HomeChat({
   const [repoModalOpen, setRepoModalOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [branch, setBranch] = useState<string | null>(null)
+  const [branches, setBranches] = useState<string[]>([])
+  const [branchesLoading, setBranchesLoading] = useState(false)
 
   const selected = repos.find((r) => r.id === selectedId) ?? null
+  const activeBranch = branch ?? selected?.defaultBranch ?? DEFAULT_BRANCH_LABEL
+
+  useEffect(() => {
+    setBranch(null)
+    setBranches([])
+    if (!selectedId) return
+    let cancelled = false
+    setBranchesLoading(true)
+    listBranches(selectedId)
+      .then((data) => {
+        if (cancelled) return
+        setBranches(data.branches)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setBranches([])
+      })
+      .finally(() => {
+        if (!cancelled) setBranchesLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedId])
 
   async function handleSync() {
     setSyncing(true)
@@ -54,6 +82,7 @@ export function HomeChat({
         repoId: selectedId,
         prompt: msg.trim(),
         mode: mode.toUpperCase() as 'ASK' | 'AGENT',
+        baseBranch: activeBranch,
       })
       router.push(`/sessions/${data.sessionId}`)
     } catch (error) {
@@ -134,10 +163,13 @@ export function HomeChat({
           <HugeiconsIcon icon={Folder01Icon} size={14} className="text-primary" />
           <span>{selected?.fullName ?? 'Select repository'}</span>
         </button>
-        <span className="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground">
-          <HugeiconsIcon icon={GitBranchIcon} size={12} />
-          <span>{selected?.defaultBranch ?? DEFAULT_BRANCH_LABEL} (default)</span>
-        </span>
+        <BranchSelect
+          value={activeBranch}
+          defaultBranch={selected?.defaultBranch ?? DEFAULT_BRANCH_LABEL}
+          branches={branches}
+          disabled={branchesLoading}
+          onChange={setBranch}
+        />
       </div>
       <RepoSelectModal
         open={repoModalOpen}
@@ -159,7 +191,7 @@ export function HomeChat({
               back and sync.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-md border bg-muted/30 p-3 text-sm">
+          <div className="min-w-0 rounded-md border bg-muted/30 p-3 text-sm">
             <div className="font-medium">Your installation</div>
             <a
               href={
@@ -169,7 +201,7 @@ export function HomeChat({
               }
               target="_blank"
               rel="noreferrer"
-              className="mt-1 inline-flex items-center gap-1 text-primary underline"
+              className="mt-1 inline-flex min-w-0 items-center gap-1 break-all text-primary underline"
             >
               {installationId
                 ? `${GITHUB_INSTALLATIONS_URL}/${installationId}`

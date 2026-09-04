@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from 'db'
 import { requireUser } from '@/lib/session-resume'
+import { isValidBranchName } from '@/lib/utils'
 import { log } from '@/lib/log'
 
 export async function GET(request: NextRequest) {
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { repoId, prompt, provider = 'OPENAI', mode = 'AGENT' } = body
+    const { repoId, prompt, provider = 'OPENAI', mode = 'AGENT', baseBranch } = body
     const normalizedMode = mode === 'ASK' ? 'ASK' : 'AGENT'
 
     if (!repoId || !prompt) {
@@ -57,6 +58,9 @@ export async function POST(request: NextRequest) {
         { error: 'Missing required fields: repoId, prompt' },
         { status: 400 },
       )
+    }
+    if (baseBranch !== undefined && baseBranch !== null && !isValidBranchName(baseBranch)) {
+      return NextResponse.json({ error: 'Invalid branch name' }, { status: 400 })
     }
     const repo = await prisma.repo.findUnique({
       where: { id: repoId },
@@ -80,6 +84,7 @@ export async function POST(request: NextRequest) {
         status: 'QUEUED',
         userId,
         repoId: repo.id,
+        baseBranch: baseBranch ?? null,
       },
     })
 

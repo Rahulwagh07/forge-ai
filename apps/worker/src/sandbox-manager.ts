@@ -109,13 +109,14 @@ export interface AcquireSandboxOptions {
   isResume: boolean
   repoCloneUrl: string
   branchName: string
+  baseBranch?: string | null
   gitToken: string
 }
 
 export async function acquireSandbox(
   opts: AcquireSandboxOptions,
 ): Promise<{ sandbox: SandboxHandle; managed: ManagedSandbox }> {
-  const { sessionId, isAsk, isResume, repoCloneUrl, branchName } = opts
+  const { sessionId, isAsk, isResume, repoCloneUrl, branchName, baseBranch } = opts
 
   const existing = managedSandboxes.get(sessionId)
   if (existing) {
@@ -124,10 +125,19 @@ export async function acquireSandbox(
     return { sandbox: existing.sandbox, managed: existing }
   }
 
-  log.info('creating sandbox', { sessionId, isAsk, isResume, branchName })
+  log.info('creating sandbox', { sessionId, isAsk, isResume, branchName, baseBranch })
   const sandbox = await sandboxProvider.create({
     repoCloneUrl,
-    ...(isAsk ? {} : isResume ? { branch: branchName } : { createBranch: branchName }),
+    ...(isAsk
+      ? baseBranch
+        ? { branch: baseBranch }
+        : {}
+      : isResume
+        ? { branch: branchName }
+        : {
+            ...(baseBranch ? { branch: baseBranch } : {}),
+            createBranch: branchName,
+          }),
     sessionId,
     env: sandboxGitEnv(opts.gitToken),
   })

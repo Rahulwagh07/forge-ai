@@ -15,6 +15,7 @@ export const GITHUB_INSTALLATIONS_URL = 'https://github.com/settings/installatio
 
 export const API = {
   sessions: '/api/sessions',
+  repos: '/api/repos',
   githubSync: '/api/github/sync',
   githubCallback: '/api/github/callback',
 } as const
