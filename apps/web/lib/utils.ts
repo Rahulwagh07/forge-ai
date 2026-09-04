@@ -17,3 +17,9 @@ export function timeAgo(createdAt: string): string {
 export function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
+
+export function splitPath(path: string): { name: string; dir: string } {
+  const index = path.lastIndexOf('/')
+  if (index < 0) return { name: path, dir: '' }
+  return { name: path.slice(index + 1), dir: path.slice(0, index) }
+}
