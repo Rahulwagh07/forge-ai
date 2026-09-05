@@ -1,9 +1,10 @@
 import { prisma } from 'db'
 import { installationOctokit, findOrCreatePr, type RepoRef } from 'github'
 import type { SandboxHandle } from 'sandbox'
-import { publishEvent } from './events.ts'
-import { runInRepo, shellQuote } from './git.ts'
-import { log } from './log.ts'
+import { publishEvent } from '../runtime/events.ts'
+import { runInRepo } from '../sandbox/git.ts'
+import { shellQuote } from 'sandbox'
+import { log } from '../runtime/log.ts'
 
 export interface ChangeStats {
   files: number
@@ -51,7 +52,10 @@ async function pushBranch(
   branchName: string,
   authUrl: string,
 ): Promise<void> {
-  const result = await runInRepo(sandbox, `git push ${shellQuote(authUrl)} ${shellQuote(branchName)}`)
+  const result = await runInRepo(
+    sandbox,
+    `git push ${shellQuote(authUrl)} ${shellQuote(branchName)}`,
+  )
   if (result.exitCode !== 0) {
     throw new Error(
       `Failed to push branch ${branchName} (exit ${result.exitCode}):\n${result.stdout}\n${result.stderr}`,
@@ -62,7 +66,12 @@ async function pushBranch(
       where: { id: sessionId },
       data: { branchPushed: true },
     })
-    .catch(() => {})
+    .catch((error) =>
+      log.warn('failed to mark branch pushed', {
+        sessionId,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    )
 }
 
 export async function pushAndNotify(
@@ -75,6 +84,33 @@ export async function pushAndNotify(
   await publishEvent(sessionId, { type: 'branch_pushed', branch: branchName })
 }
 
+export function isMissingBaseError(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) return false
+  const record = err as Record<string, unknown>
+  if (record.status !== 422) return false
+  const pools: unknown[] = [record.errors, record.data]
+  const response = record.response
+  if (typeof response === 'object' && response !== null) {
+    const responseRecord = response as Record<string, unknown>
+    pools.push(responseRecord.errors)
+    const data = responseRecord.data
+    if (typeof data === 'object' && data !== null) {
+      pools.push((data as Record<string, unknown>).errors)
+    }
+  }
+  return pools.some(
+    (pool) =>
+      Array.isArray(pool) &&
+      pool.some(
+        (entry) =>
+          typeof entry === 'object' &&
+          entry !== null &&
+          (entry as Record<string, unknown>).resource === 'PullRequest' &&
+          (entry as Record<string, unknown>).field === 'base' &&
+          (entry as Record<string, unknown>).code === 'invalid',
+      ),
+  )
+}
 export function prTitle(prompt: string): string {
   const normalized = prompt.trim().replace(/\s+/g, ' ')
   return normalized.length > 72 ? `${normalized.slice(0, 69)}...` : normalized
@@ -87,17 +123,29 @@ export async function finishWithPr(opts: {
   prompt: string
   token: string
   repoRef: RepoRef
-  changeStats: ChangeStats
+  changeStats: ChangeStats | null
 }): Promise<void> {
   const { sessionId, branchName, base, prompt, token, repoRef, changeStats } = opts
 
   log.info('creating PR', { sessionId })
-  const pr = await findOrCreatePr(installationOctokit(token), repoRef, {
-    title: prTitle(prompt),
-    body: `This PR was created by an AI agent session.\n\n**Prompt:** ${prompt}\n\n**Session ID:** ${sessionId}`,
-    head: branchName,
-    base,
-  })
+  let pr: { url: string; created: boolean }
+  try {
+    pr = await findOrCreatePr(installationOctokit(token), repoRef, {
+      title: prTitle(prompt),
+      body: `This PR was created by an AI agent session.\n\n**Prompt:** ${prompt}\n\n**Session ID:** ${sessionId}`,
+      head: branchName,
+      base,
+    })
+  } catch (err) {
+    if (!isMissingBaseError(err)) throw err
+    log.warn('base branch missing at PR time, branch pushed without PR', { sessionId, base })
+    await publishEvent(sessionId, {
+      type: 'status',
+      status: 'AWAITING_INPUT',
+      error: `Branch ${branchName} is pushed, but no pull request was opened: base branch "${base}" does not exist. Create it, then retry the session.`,
+    })
+    return
+  }
 
   await prisma.session.updateMany({
     where: { id: sessionId, status: 'AWAITING_INPUT' },

@@ -95,6 +95,8 @@ export function initialChatItems(
         role: 'system',
         kind: 'event',
         diff: content.diff,
+        diffFiles: 'files' in content ? (content.files as number | undefined) : undefined,
+        diffTruncated: 'truncated' in content ? Boolean(content.truncated) : undefined,
         createdAt: step.createdAt,
       })
     }

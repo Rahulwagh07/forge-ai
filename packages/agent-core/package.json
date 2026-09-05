@@ -13,7 +13,8 @@
   "dependencies": {
     "github": "workspace:*",
     "openai": "^7.5.0",
-    "sandbox": "workspace:*"
+    "sandbox": "workspace:*",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/bun": "latest",

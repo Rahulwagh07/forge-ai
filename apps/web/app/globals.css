@@ -47,6 +47,24 @@
   box-shadow: none;
 }
 
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+html::-webkit-scrollbar {
+  width: 0.625rem;
+  height: 0.625rem;
+}
+html::-webkit-scrollbar-track {
+  background: transparent;
+}
+html::-webkit-scrollbar-thumb {
+  border: 0.1875rem solid transparent;
+  border-radius: 9999px;
+  background-clip: content-box;
+  background-color: var(--border);
+}
+
 @custom-variant dark (&:is(.dark *));
 
 html,

@@ -1,6 +1,3 @@
-/**worker publishes session events,
- * SSE route subscribes and forwards to browser.
- */
 import Redis from 'ioredis'
 
 export class PubSub {

@@ -60,7 +60,9 @@ export function RepoSelectModal({
                   onClick={() => setTemp(r.id)}
                   className={`flex w-full items-center justify-start gap-3 rounded-md px-4 py-2.5 text-left text-sm hover:bg-muted/40 ${active ? 'bg-muted/60' : ''}`}
                 >
-                  <span className="min-w-0 flex-1 truncate text-left font-medium">{r.fullName}</span>
+                  <span className="min-w-0 flex-1 truncate text-left font-medium">
+                    {r.fullName}
+                  </span>
                   {active ? (
                     <HugeiconsIcon icon={Tick02Icon} size={16} className="shrink-0 text-primary" />
                   ) : null}

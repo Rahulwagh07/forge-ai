@@ -33,7 +33,9 @@ export function createSession(input: {
   })
 }
 
-export function listBranches(repoId: string): Promise<{ defaultBranch: string; branches: string[] }> {
+export function listBranches(
+  repoId: string,
+): Promise<{ defaultBranch: string; branches: string[] }> {
   return request(`${API.repos}/${repoId}/branches`)
 }
 

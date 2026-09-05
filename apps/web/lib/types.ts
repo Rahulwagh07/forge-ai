@@ -18,7 +18,7 @@ export type StoredStepContent =
       isError?: boolean
       durationMs?: number
     }
-  | { diff: string }
+  | { diff: string; files?: number; additions?: number; deletions?: number; truncated?: boolean }
   | { step: number }
 
 export type StoredStep = {
@@ -58,8 +58,17 @@ export type SessionEvent =
         data?: string
       }
     }
-  | { type: 'diff'; diff: string; stepNumber?: number }
+  | {
+      type: 'diff'
+      diff: string
+      files?: number
+      additions?: number
+      deletions?: number
+      truncated?: boolean
+      stepNumber?: number
+    }
   | { type: 'branch_pushed'; branch: string }
+  | { type: 'compaction'; stepNumber?: number }
   | {
       type: 'pr_created'
       prUrl: string
@@ -89,6 +98,8 @@ export type ChatItem = {
   toolInput?: Record<string, unknown>
   toolOutput?: string
   diff?: string
+  diffFiles?: number
+  diffTruncated?: boolean
   pr?: PullRequestInfo
   durationMs?: number
   isThinking?: boolean

@@ -23,8 +23,10 @@ export default async function Home() {
   })
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
-      <HomeChat repos={repos} installationId={installation?.installationId ?? null} />
+    <main className="flex h-full min-h-0 w-full flex-1 flex-col overflow-y-auto">
+      <div className="m-auto flex w-full max-w-3xl flex-col p-4 md:p-8">
+        <HomeChat repos={repos} installationId={installation?.installationId ?? null} />
+      </div>
     </main>
   )
 }

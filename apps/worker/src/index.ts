@@ -1,8 +1,8 @@
 import { configDotenv } from 'dotenv'
 configDotenv()
 
-import { Consumer } from './consumer.ts'
-import { log } from './log.ts'
+import { Consumer } from './runtime/consumer.ts'
+import { log } from './runtime/log.ts'
 
 const consumer = new Consumer('worker-1')
 

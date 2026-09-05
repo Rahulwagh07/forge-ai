@@ -69,7 +69,14 @@ async function main(): Promise<void> {
 
   try {
     const result = await runAgentLoop({
-      provider: new OpenAIProvider(),
+      provider: new OpenAIProvider({
+        credentials: {
+          OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+          OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
+          OPENAI_MODEL: process.env.OPENAI_MODEL,
+          OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+        },
+      }),
       sandbox,
       userPrompt:
         'Explore this repository, then write a file AGENT_NOTES.md at the repo root summarizing what the project does in 3 bullet points. Commit with a sensible message, then finish.',

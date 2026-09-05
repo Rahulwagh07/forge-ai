@@ -1,6 +1,7 @@
 import type { OutputChunk, SandboxHandle } from 'sandbox'
-import type { ToolCall } from './provider.ts'
-import { MAX_TOOL_OUTPUT_CHARS } from './constants.ts'
+import { assertSafePath, blockedCommandReason } from '../guards.ts'
+import type { ToolCall } from '../provider.ts'
+import { MAX_COMMAND_TIMEOUT_MS, MAX_TOOL_OUTPUT_CHARS } from '../../constants.ts'
 
 export interface ToolOutcome {
   output: string
@@ -9,12 +10,10 @@ export interface ToolOutcome {
 
 export interface ToolExecutionOptions {
   onOutput?: (chunk: OutputChunk) => void
-  // When true, side-effecting tools (writeFile, commitAndOpenPR, finishSession) are blocked
   readOnly?: boolean
 }
 
-// tools that mutate state: blocked in read-only (ASK) mode
-const WRITE_TOOLS = new Set(['writeFile', 'commitAndOpenPR', 'finishSession'])
+const WRITE_TOOLS = new Set(['writeFile', 'commitAndOpenPR'])
 
 export async function executeToolCall(
   sandbox: SandboxHandle,
@@ -22,16 +21,16 @@ export async function executeToolCall(
   options: ToolExecutionOptions = {},
 ): Promise<ToolOutcome> {
   try {
-    return await dispatch(sandbox, call, options)
+    return await invokeToolCall(sandbox, call, options)
   } catch (err) {
     return {
-      output: truncate(err instanceof Error ? err.message : String(err)),
+      output: truncateToolOutput(err instanceof Error ? err.message : String(err)),
       isError: true,
     }
   }
 }
 
-async function dispatch(
+async function invokeToolCall(
   sandbox: SandboxHandle,
   call: ToolCall,
   options: ToolExecutionOptions,
@@ -43,7 +42,9 @@ async function dispatch(
     case 'readFile': {
       const path = requireString(call.input.path)
       if (!path) return badInput('readFile requires `path`')
-      return success(truncate(await sandbox.readFile(path)))
+      const blocked = assertSafePath(path)
+      if (blocked) return badInput(blocked)
+      return success(truncateToolOutput(await sandbox.readFile(path)))
     }
 
     case 'writeFile': {
@@ -52,6 +53,8 @@ async function dispatch(
       if (!path || typeof content !== 'string') {
         return badInput('writeFile requires `path` and `content`')
       }
+      const blocked = assertSafePath(path)
+      if (blocked) return badInput(blocked)
       await sandbox.writeFile(path, content)
       return success(`wrote ${Buffer.byteLength(content)} bytes to ${path}`)
     }
@@ -59,22 +62,33 @@ async function dispatch(
     case 'listDir': {
       const path = requireString(call.input.path)
       if (!path) return badInput('listDir requires `path`')
+      const blocked = assertSafePath(path)
+      if (blocked) return badInput(blocked)
       const entries = await sandbox.listDir(path)
-      return success(truncate(entries.join('\n')))
+      return success(truncateToolOutput(entries.join('\n')))
     }
 
     case 'runCommand': {
       const cmd = requireString(call.input.cmd)
       if (!cmd) return badInput('runCommand requires `cmd`')
-      const timeoutMs = typeof call.input.timeoutMs === 'number' ? call.input.timeoutMs : undefined
+      const blocked = blockedCommandReason(cmd)
+      if (blocked) return badInput(blocked)
+      const requestedTimeoutMs =
+        typeof call.input.timeoutMs === 'number' && Number.isFinite(call.input.timeoutMs)
+          ? call.input.timeoutMs
+          : undefined
+      const timeoutMs = Math.min(
+        Math.max(requestedTimeoutMs ?? MAX_COMMAND_TIMEOUT_MS, 0),
+        MAX_COMMAND_TIMEOUT_MS,
+      )
       const res = await sandbox.runCommand(cmd, {
         timeoutMs,
         onOutput: options.onOutput,
       })
       const parts = [
         `exitCode: ${res.exitCode}`,
-        res.stdout && `stdout:\n${truncate(res.stdout)}`,
-        res.stderr && `stderr:\n${truncate(res.stderr)}`,
+        res.stdout && `stdout:\n${truncateToolOutput(res.stdout)}`,
+        res.stderr && `stderr:\n${truncateToolOutput(res.stderr)}`,
       ].filter(Boolean)
       return success(parts.join('\n'))
     }
@@ -103,7 +117,7 @@ async function commitAndOpenPR(sandbox: SandboxHandle, call: ToolCall): Promise<
   )
   if (res.exitCode !== 0) {
     return {
-      output: truncate(`git commit failed:\n${res.stderr}`),
+      output: truncateToolOutput(`git commit failed:\n${res.stderr}`),
       isError: true,
     }
   }
@@ -115,12 +129,7 @@ async function commitAndOpenPR(sandbox: SandboxHandle, call: ToolCall): Promise<
   )
 }
 
-/**
- * Keeps head AND tail: beginnings carry context, endings carry the errors
- * and exit banners agents actually need. The omitted span is stated exactly
- * so the model knows what it is missing
- */
-function truncate(text: string, max = MAX_TOOL_OUTPUT_CHARS): string {
+export function truncateToolOutput(text: string, max = MAX_TOOL_OUTPUT_CHARS): string {
   if (text.length <= max) return text
   const headSize = Math.floor(max / 4)
   const tailSize = max - headSize

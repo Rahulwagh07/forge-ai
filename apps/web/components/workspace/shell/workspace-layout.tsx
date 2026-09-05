@@ -132,11 +132,11 @@ export function WorkspaceLayout({
     return result
   }, [items, pr])
   const terminalEntries = useMemo(() => toTerminalEntries(chatItems, chunks), [chatItems, chunks])
-  const latestDiff = useMemo(
-    () => [...items].reverse().find((item) => item.diff)?.diff ?? '',
-    [items],
-  )
-  const fileCount = latestDiff ? latestDiff.split(/^diff --git /m).filter(Boolean).length : 0
+  const latestDiffItem = useMemo(() => [...items].reverse().find((item) => item.diff), [items])
+  const latestDiff = latestDiffItem?.diff ?? ''
+  const fileCount =
+    latestDiffItem?.diffFiles ??
+    (latestDiff ? latestDiff.split(/^diff --git /m).filter(Boolean).length : 0)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -145,7 +145,13 @@ export function WorkspaceLayout({
   async function handleSend(message: string) {
     setItems((previous) => [
       ...previous,
-      { id: `local-${genId()}`, role: 'user', kind: 'steering', text: message, createdAt: new Date().toISOString() },
+      {
+        id: `local-${genId()}`,
+        role: 'user',
+        kind: 'steering',
+        text: message,
+        createdAt: new Date().toISOString(),
+      },
     ])
     setIsThinking(true)
     try {
@@ -204,7 +210,12 @@ export function WorkspaceLayout({
         </div>
         <div className="absolute inset-x-0 bottom-0 z-10 p-3">
           <div className="mx-auto w-full max-w-3xl">
-            <Composer status={status} onSend={handleSend} allowCompleted />
+            <Composer
+              status={status}
+              onSend={handleSend}
+              allowCompleted
+              placeholder="Ask a question"
+            />
           </div>
         </div>
       </div>

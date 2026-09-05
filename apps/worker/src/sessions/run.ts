@@ -1,19 +1,19 @@
 import { prisma } from 'db'
 import { loadAppConfigFromEnv, mintInstallationToken, tokenEmbedUrl, type RepoRef } from 'github'
 import type { SandboxHandle } from 'sandbox'
-import { acquireSandbox, destroySandbox, touchSandbox } from './sandbox-manager.ts'
-import type { ManagedSandbox } from './sandbox-manager.ts'
-import { runAgentLoopForSession } from './agent-loop.ts'
-import { setSessionToken, clearSessionToken } from './token-redaction.ts'
-import { publishEvent } from './events.ts'
-import { log } from './log.ts'
-import { getChangeStats } from './git.ts'
+import { acquireSandbox, destroySandbox, touchSandbox } from '../sandbox/manager.ts'
+import type { ManagedSandbox } from '../sandbox/manager.ts'
+import { runAgentLoopForSession } from './loop.ts'
+import { setSessionToken, clearSessionToken } from '../runtime/redaction.ts'
+import { publishEvent } from '../runtime/events.ts'
+import { log } from '../runtime/log.ts'
+import { getChangeStats, ensureBaseBranch } from '../sandbox/git.ts'
 import {
   finalizeIfNoSteering,
   pushAndNotify,
   requeueForSteering,
   finishWithPr,
-} from './session-finalize.ts'
+} from './finalize.ts'
 
 const HEARTBEAT_INTERVAL_MS = 30_000
 
@@ -28,8 +28,6 @@ export async function runSession(sessionId: string): Promise<void> {
   if (!session) throw new Error(`Session ${sessionId} not found`)
 
   const isAsk = session.mode === 'ASK'
-  // A session only has a pushed branch if it ran at least once before, so the
-  // branch tells us whether this run resumes from the agent's last state.
   const isResume = !isAsk && session.branchPushed
 
   await publishEvent(sessionId, { type: 'status', status: 'RUNNING' })
@@ -38,7 +36,12 @@ export async function runSession(sessionId: string): Promise<void> {
     heartbeat = setInterval(() => {
       prisma.session
         .update({ where: { id: sessionId }, data: { lastActiveAt: new Date() } })
-        .catch(() => {})
+        .catch((error) =>
+          log.warn('session heartbeat failed', {
+            sessionId,
+            error: error instanceof Error ? error.message : String(error),
+          }),
+        )
     }, HEARTBEAT_INTERVAL_MS)
 
     const repoRef = parseRepoRef(session.repo.fullName)
@@ -60,6 +63,23 @@ export async function runSession(sessionId: string): Promise<void> {
     })
     sandbox = acquired.sandbox
     managedSandbox = acquired.managed
+    if (!isAsk && !isResume) {
+      const baseState = await ensureBaseBranch(sandbox, baseBranch, branchName, cloneUrl)
+      if (baseState === 'missing') {
+        if (!(await finalizeIfNoSteering(sessionId, 'AWAITING_INPUT', null))) {
+          await requeueForSteering(sessionId)
+          return
+        }
+        await publishEvent(sessionId, {
+          type: 'status',
+          status: 'AWAITING_INPUT',
+          error: `Base branch "${baseBranch}" does not exist in ${session.repo.fullName}. Select an existing branch, then retry the session.`,
+        })
+        touchSandbox(managedSandbox)
+        log.info('session paused, base branch missing', { sessionId, baseBranch })
+        return
+      }
+    }
 
     await prisma.session.update({
       where: { id: sessionId },
@@ -106,12 +126,7 @@ export async function runSession(sessionId: string): Promise<void> {
         return
       }
       if (commitRequested) {
-        const changeStats = await getChangeStats(
-          sandbox,
-          baseBranch,
-          true,
-          cloneUrl,
-        )
+        const changeStats = await getChangeStats(sandbox, baseBranch, true, cloneUrl)
         await finishWithPr({
           sessionId,
           branchName,
@@ -130,7 +145,12 @@ export async function runSession(sessionId: string): Promise<void> {
     }
 
     const changeStats = await getChangeStats(sandbox, baseBranch, true, cloneUrl)
-    if (changeStats.files === 0 && changeStats.additions === 0 && changeStats.deletions === 0) {
+    if (
+      changeStats &&
+      changeStats.files === 0 &&
+      changeStats.additions === 0 &&
+      changeStats.deletions === 0
+    ) {
       if (!(await finalizeIfNoSteering(sessionId, 'DONE', new Date()))) {
         await requeueForSteering(sessionId)
         return
@@ -165,7 +185,12 @@ export async function runSession(sessionId: string): Promise<void> {
       sessionId,
       error: error instanceof Error ? error.message : String(error),
     })
-    await destroySandbox(sessionId, sandbox).catch(() => {})
+    await destroySandbox(sessionId, sandbox).catch((error) =>
+      log.warn('session cleanup destroy failed', {
+        sessionId,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    )
     await prisma.session.updateMany({
       where: { id: sessionId, status: { not: 'QUEUED' } },
       data: { status: 'FAILED', completedAt: new Date() },
@@ -186,13 +211,7 @@ export async function runSession(sessionId: string): Promise<void> {
 async function loadSession(sessionId: string) {
   return prisma.session.findUnique({
     where: { id: sessionId },
-    include: {
-      repo: {
-        include: {
-          installation: true,
-        },
-      },
-    },
+    include: { repo: true },
   })
 }
 

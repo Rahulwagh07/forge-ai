@@ -17,7 +17,10 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
     where: { id },
     include: {
       repo: true,
-      steps: { orderBy: [{ stepNumber: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }] },
+      steps: {
+        orderBy: [{ stepNumber: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+        take: 200,
+      },
     },
   })
   if (!dbSession) {
@@ -27,11 +30,14 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
     return <div className="p-6 text-sm">Not authorized for this session</div>
   }
 
-  const steps: StoredStep[] = dbSession.steps.map((step) => ({
-    type: step.type,
-    content: (step.content ?? {}) as StoredStep['content'],
-    createdAt: step.createdAt.toISOString(),
-  }))
+  const steps: StoredStep[] = dbSession.steps
+    .slice()
+    .reverse()
+    .map((step) => ({
+      type: step.type,
+      content: (step.content ?? {}) as StoredStep['content'],
+      createdAt: step.createdAt.toISOString(),
+    }))
 
   let initialPrState: PrState | undefined
   if (dbSession.prUrl) {

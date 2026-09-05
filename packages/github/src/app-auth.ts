@@ -43,10 +43,6 @@ export interface RepoRef {
   repo: string
 }
 
-/**
- * Mint a one-repo-scoped installation token (Contents+PRs write).
- * Expires ~1 hour; never persisted, dies with the session.
- */
 export async function mintInstallationToken(
   config: GitHubAppConfig,
   repo: RepoRef,
@@ -64,6 +60,7 @@ export async function mintInstallationToken(
       contents: 'write',
       pull_requests: 'write',
       metadata: 'read',
+      administration: 'write',
     },
   })
 

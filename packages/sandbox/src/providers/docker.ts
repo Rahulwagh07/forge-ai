@@ -10,16 +10,17 @@ import type {
   SandboxProvider,
 } from '../provider.ts'
 import { getFileName, getLastLines, getParentDirectory, shellQuote } from '../utils.ts'
+import { env } from '../env.ts'
 
 const WORKSPACE_DIR = '/workspace'
 const REPO_DIR = '/workspace/repo'
-const DEFAULT_IMAGE = process.env.SANDBOX_IMAGE ?? 'forge-sandbox:latest'
+const DEFAULT_IMAGE = env.SANDBOX_IMAGE
 const LABEL_APP = 'app.forge.sandbox'
 const LABEL_SESSION = 'app.forge.session-id'
 const DEFAULT_CMD_TIMEOUT_MS = 30 * 60 * 1000
 const CLONE_TIMEOUT_MS = 120_000
-const MEMORY_BYTES = Number(process.env.SANDBOX_MEMORY_BYTES ?? 2 * 1024 ** 3)
-const NANOCPUS = Number(process.env.SANDBOX_NANOCPUS ?? 1_000_000_000) // 1e9 NanoCpus = 1 CPU
+const MEMORY_BYTES = env.SANDBOX_MEMORY_BYTES
+const NANOCPUS = env.SANDBOX_NANOCPUS
 
 export class DockerSandboxProvider implements SandboxProvider {
   private readonly docker: Dockerode
@@ -124,9 +125,13 @@ export class DockerSandboxProvider implements SandboxProvider {
       timeoutMs: CLONE_TIMEOUT_MS,
     })
     if (result.exitCode !== 0) {
-      throw new Error(
-        `[sandbox] git clone failed (exit ${result.exitCode}):\n${getLastLines(result.stderr)}`,
-      )
+      if (opts.branch && isMissingBranchError(result.stderr)) {
+        await this.cloneEmptyRepo(handle, opts)
+      } else {
+        throw new Error(
+          `[sandbox] git clone failed (exit ${result.exitCode}):\n${getLastLines(result.stderr)}`,
+        )
+      }
     }
 
     if (opts.createBranch) {
@@ -146,6 +151,29 @@ export class DockerSandboxProvider implements SandboxProvider {
       )
       .catch(() => {})
   }
+
+  // Empty repos have no branches, so --branch always fails. Clone without it:
+  // git lands on unborn HEAD and checkout -b / Q&A work normally.
+  private async cloneEmptyRepo(handle: SandboxHandle, opts: CreateSandboxOptions): Promise<void> {
+    await handle
+      .runCommand(`rm -rf ${shellQuote(REPO_DIR)}`, { cwd: WORKSPACE_DIR })
+      .catch(() => {})
+    const retry = await handle.runCommand(
+      `git clone ${shellQuote(opts.repoCloneUrl)} ${shellQuote(REPO_DIR)}`,
+      { cwd: WORKSPACE_DIR, timeoutMs: CLONE_TIMEOUT_MS },
+    )
+    if (retry.exitCode !== 0) {
+      throw new Error(
+        `[sandbox] git clone failed (exit ${retry.exitCode}):\n${getLastLines(retry.stderr)}`,
+      )
+    }
+  }
+}
+
+function isMissingBranchError(stderr: string): boolean {
+  return /remote branch .* not found|remote HEAD refers to nonexistent|couldn't find remote ref/i.test(
+    stderr,
+  )
 }
 
 class DockerSandboxHandle implements SandboxHandle {

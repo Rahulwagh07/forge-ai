@@ -110,4 +110,5 @@ model SessionStep {
   createdAt  DateTime @default(now())
 
   @@index([sessionId, stepNumber])
+  @@index([sessionId, type, consumedAt])
 }

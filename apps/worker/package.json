@@ -9,12 +9,13 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "redis": "workspace:*",
     "agent-core": "workspace:*",
-    "sandbox": "workspace:*",
-    "github": "workspace:*",
     "db": "workspace:*",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "github": "workspace:*",
+    "redis": "workspace:*",
+    "sandbox": "workspace:*",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/bun": "latest",

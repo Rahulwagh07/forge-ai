@@ -1,4 +1,4 @@
-import type { ToolDefinition } from './provider.ts'
+import type { ToolDefinition } from '../provider.ts'
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
@@ -64,11 +64,6 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
           type: 'string',
           description: 'Conventional commit message',
         },
-        prTitle: {
-          type: 'string',
-          description: 'PR title (used when a PR is opened)',
-        },
-        prBody: { type: 'string', description: 'PR description in markdown' },
       },
       required: ['commitMessage'],
     },

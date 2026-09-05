@@ -1,10 +1,7 @@
-//  Session consumer: claims sessions needing work straight from the Session
-//  table, runs the agent loop, and publishes events to pub/sub for live SSE
-//  streaming
-
 import { prisma } from 'db'
-import { runSession } from './session-runner.ts'
-import { startSandboxCleanup } from './sandbox-manager.ts'
+import { env } from '../env.ts'
+import { runSession } from '../sessions/run.ts'
+import { startSandboxCleanup } from '../sandbox/manager.ts'
 import { log } from './log.ts'
 
 const POLL_INTERVAL_MS = 1000
@@ -12,7 +9,7 @@ const RECLAIM_INTERVAL_MS = 30_000
 const STALE_SESSION_SECONDS = 120
 
 // Max sessions this worker runs concurrently
-const CONCURRENCY = Math.max(1, Number(process.env.WORKER_CONCURRENCY ?? 4))
+const CONCURRENCY = env.WORKER_CONCURRENCY
 
 const CLAIM_NEXT_SQL = `UPDATE "Session" s
 SET "status" = 'RUNNING', "lastActiveAt" = now()
@@ -37,7 +34,7 @@ export class Consumer {
   // sessions this process is actively running
   private readonly activeSessions = new Set<string>()
 
-  constructor(name = process.env.WORKER_NAME ?? 'worker-1') {
+  constructor(name = env.WORKER_NAME) {
     this.name = name
   }
 

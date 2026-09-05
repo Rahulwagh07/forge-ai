@@ -1,7 +1,8 @@
 import { prisma } from 'db'
 import { getSandboxProvider } from 'sandbox'
+import { env } from '../env.ts'
 import type { SandboxHandle, SandboxProvider } from 'sandbox'
-import { log } from './log.ts'
+import { log } from '../runtime/log.ts'
 
 export const sandboxProvider: SandboxProvider = getSandboxProvider()
 
@@ -27,7 +28,7 @@ export async function destroySandbox(
 }
 
 export function startSandboxCleanup(): () => void {
-  const intervalMs = Number(process.env.SANDBOX_REAPER_INTERVAL_MS ?? 60_000)
+  const intervalMs = env.SANDBOX_REAPER_INTERVAL_MS
   const timer = setInterval(() => {
     void destroyIdleSandboxes()
   }, intervalMs)
@@ -57,7 +58,12 @@ async function destroyIdleSandboxes(): Promise<void> {
         error: error instanceof Error ? error.message : String(error),
       })
     })
-    await markSessionPaused(sessionId).catch(() => {})
+    await markSessionPaused(sessionId).catch((error) =>
+      log.warn('failed to mark session paused after reap', {
+        sessionId,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    )
     log.info('reaped idle sandbox', { sessionId })
   }
 
@@ -86,7 +92,12 @@ async function destroyOrphanedContainers(now: number, idleTimeoutMs: number): Pr
         continue
 
       await sandboxProvider.destroySandbox(orphan.id)
-      await markSessionPaused(orphan.sessionId).catch(() => {})
+      await markSessionPaused(orphan.sessionId).catch((error) =>
+        log.warn('failed to mark orphan session paused', {
+          sessionId: orphan.sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      )
       log.info('swept orphan sandbox', { sessionId: orphan.sessionId, sandboxId: orphan.id })
     }
   } catch (error) {
@@ -96,7 +107,7 @@ async function destroyOrphanedContainers(now: number, idleTimeoutMs: number): Pr
   }
 }
 
-export async function markSessionPaused(sessionId: string): Promise<void> {
+async function markSessionPaused(sessionId: string): Promise<void> {
   await prisma.session.updateMany({
     where: { id: sessionId, status: 'AWAITING_INPUT' },
     data: { status: 'PAUSED', lastActiveAt: new Date() },
@@ -153,21 +164,15 @@ export async function acquireSandbox(
 function sandboxGitEnv(gitToken: string): Record<string, string> {
   return {
     FORGE_GIT_TOKEN: gitToken,
-    GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME ?? process.env.SANDBOX_GIT_NAME ?? 'forge-agent',
+    GIT_AUTHOR_NAME: env.GIT_AUTHOR_NAME ?? env.SANDBOX_GIT_NAME ?? 'forge-agent',
     GIT_AUTHOR_EMAIL:
-      process.env.GIT_AUTHOR_EMAIL ??
-      process.env.SANDBOX_GIT_EMAIL ??
-      'forge-agent@users.noreply.github.com',
-    GIT_COMMITTER_NAME:
-      process.env.GIT_COMMITTER_NAME ?? process.env.SANDBOX_GIT_NAME ?? 'forge-agent',
+      env.GIT_AUTHOR_EMAIL ?? env.SANDBOX_GIT_EMAIL ?? 'forge-agent@users.noreply.github.com',
+    GIT_COMMITTER_NAME: env.GIT_COMMITTER_NAME ?? env.SANDBOX_GIT_NAME ?? 'forge-agent',
     GIT_COMMITTER_EMAIL:
-      process.env.GIT_COMMITTER_EMAIL ??
-      process.env.SANDBOX_GIT_EMAIL ??
-      'forge-agent@users.noreply.github.com',
+      env.GIT_COMMITTER_EMAIL ?? env.SANDBOX_GIT_EMAIL ?? 'forge-agent@users.noreply.github.com',
   }
 }
 
 function getSandboxIdleTimeoutMs(): number {
-  const configured = Number(process.env.SANDBOX_IDLE_TIMEOUT_MS)
-  return Number.isFinite(configured) && configured > 0 ? configured : 5 * 60 * 1000
+  return env.SANDBOX_IDLE_TIMEOUT_MS
 }

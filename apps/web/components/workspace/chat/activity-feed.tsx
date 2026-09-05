@@ -108,7 +108,9 @@ export function ActivityFeed({
                   <MessageContent text={it.text ?? ''} />
                 </div>
                 {it.createdAt ? (
-                  <span className="px-1 text-xs text-muted-foreground">{formatTime(it.createdAt)}</span>
+                  <span className="px-1 text-xs text-muted-foreground">
+                    {formatTime(it.createdAt)}
+                  </span>
                 ) : null}
               </div>
             </div>

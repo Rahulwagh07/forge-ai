@@ -42,7 +42,12 @@ export function useSessionStream(
             handlers.setStatus(nextStatus)
             handlers.setIsThinking(nextStatus === 'RUNNING')
             const error = data.error ?? ''
-            if ((nextStatus === 'FAILED' || nextStatus === 'DONE') && error) {
+            if (
+              (nextStatus === 'FAILED' ||
+                nextStatus === 'DONE' ||
+                nextStatus === 'AWAITING_INPUT') &&
+              error
+            ) {
               handlers.setItems((previous) => [
                 ...previous,
                 {
@@ -127,11 +132,24 @@ export function useSessionStream(
                 role: 'system',
                 kind: 'event',
                 diff: data.diff,
+                diffFiles: data.files,
+                diffTruncated: data.truncated,
               },
             ])
             return
           case 'branch_pushed':
             if (data.branch) handlers.setBranchName(data.branch)
+            return
+          case 'compaction':
+            handlers.setItems((previous) => [
+              ...previous,
+              {
+                id: `sse-${handlers.genId()}-compaction`,
+                role: 'system',
+                kind: 'status',
+                text: 'Context compacted, continuing with summary',
+              },
+            ])
             return
           case 'pr_created': {
             const nextPr: PullRequestInfo = {

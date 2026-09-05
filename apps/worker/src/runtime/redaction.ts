@@ -1,4 +1,5 @@
 const tokens = new Map<string, string>()
+const BASIC_AUTH_PATTERN = /x-access-token:[^@\s]+@/g
 
 export function setSessionToken(sessionId: string, token: string): void {
   tokens.set(sessionId, token)
@@ -16,7 +17,8 @@ export function redactFor(sessionId: string, value: unknown): unknown {
 
 function redactValue(value: unknown, activeToken: string): unknown {
   if (typeof value === 'string') {
-    return value.includes(activeToken) ? value.split(activeToken).join('***') : value
+    const withoutToken = value.includes(activeToken) ? value.split(activeToken).join('***') : value
+    return withoutToken.replace(BASIC_AUTH_PATTERN, 'x-access-token:***@')
   }
   if (Array.isArray(value)) return value.map((v) => redactValue(v, activeToken))
   if (value && typeof value === 'object') {

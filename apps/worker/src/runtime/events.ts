@@ -1,6 +1,6 @@
 import { Prisma } from 'db'
 import { PubSub } from 'redis'
-import { redactFor } from './token-redaction.ts'
+import { redactFor } from './redaction.ts'
 
 const pubsub = new PubSub()
 
