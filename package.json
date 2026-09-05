@@ -9,10 +9,12 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
+    "prepare": "husky",
     "sandbox:image": "docker build -t forge-sandbox:latest .",
     "sandbox:smoke": "bun run --cwd packages/sandbox smoke"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
     "oxlint": "^1.79.0",
     "prettier": "^3.7.4",
     "turbo": "^2.10.11",

@@ -1,0 +1,4 @@
+staged=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx|md)$' || true)
+[ -z "$staged" ] && exit 0
+echo "$staged" | xargs bun x prettier --check
+echo "$staged" | xargs bun x oxlint --deny-warnings
