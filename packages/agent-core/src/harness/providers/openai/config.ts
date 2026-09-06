@@ -1,5 +1,6 @@
 import {
-  DEFAULT_OPENAI_MODEL,
+  OPENCODE_GO_BASE_URL,
+  OPENCODE_GO_DEFAULT_MODEL,
   OPENROUTER_BASE_URL,
   OPENROUTER_DEFAULT_MODEL,
 } from '../../../constants.ts'
@@ -24,8 +25,9 @@ export function resolveApiCredentials(
   if (input.OPENAI_API_KEY) {
     return {
       apiKey: input.OPENAI_API_KEY,
-      baseURL: input.OPENAI_BASE_URL,
-      model: explicitModel ?? input.OPENAI_MODEL ?? DEFAULT_OPENAI_MODEL,
+      // baseURL: input.OPENAI_BASE_URL,
+      baseURL: OPENCODE_GO_BASE_URL,
+      model: explicitModel ?? input.OPENAI_MODEL ?? OPENCODE_GO_DEFAULT_MODEL,
     }
   }
 
