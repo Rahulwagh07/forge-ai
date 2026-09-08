@@ -22,6 +22,7 @@ export class OpenAIProvider implements LLMProvider {
     model?: string
     timeoutMs?: number
     maxRetries?: number
+    sessionId?: string
   }) {
     const resolved = resolveApiCredentials(opts.model, opts.credentials)
     this.client = new OpenAI({
@@ -29,6 +30,13 @@ export class OpenAIProvider implements LLMProvider {
       baseURL: resolved.baseURL,
       timeout: opts.timeoutMs ?? DEFAULT_OPENAI_TIMEOUT_MS,
       maxRetries: opts.maxRetries ?? DEFAULT_OPENAI_MAX_RETRIES,
+      defaultHeaders:
+        opts.sessionId !== undefined
+          ? {
+              'x-opencode-session': opts.sessionId,
+              'User-Agent': 'forge-worker/1.0',
+            }
+          : undefined,
     })
     this.model = opts.model ?? resolved.model
     this.contextWindow = resolveContextWindow(this.model)

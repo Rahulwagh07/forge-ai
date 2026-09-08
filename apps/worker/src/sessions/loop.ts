@@ -92,6 +92,7 @@ export async function runAgentLoopForSession(ctx: AgentLoopContext): Promise<Age
   const { sessionId, isAsk, sandbox } = ctx
 
   const provider = new OpenAIProvider({
+    sessionId,
     credentials: {
       OPENAI_API_KEY: env.OPENAI_API_KEY,
       OPENAI_BASE_URL: env.OPENAI_BASE_URL,

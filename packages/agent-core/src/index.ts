@@ -48,10 +48,11 @@ export type {
 export function getProvider(
   name: 'ANTHROPIC' | 'OPENAI' | 'GOOGLE',
   credentials: CredentialInput,
+  sessionId?: string,
 ): LLMProvider {
   switch (name) {
     case 'OPENAI':
-      return new OpenAIProvider({ credentials })
+      return new OpenAIProvider({ credentials, sessionId })
     case 'ANTHROPIC':
       throw new Error('[agent-core] not implemented')
     case 'GOOGLE':
