@@ -2,7 +2,7 @@ import { prisma } from 'db'
 import { installationOctokit, findOrCreatePr, type RepoRef } from 'github'
 import type { SandboxHandle } from 'sandbox'
 import { publishEvent } from '../runtime/events.ts'
-import { runInRepo } from '../sandbox/git.ts'
+import { runInRepo } from '../sandbox/git/index.ts'
 import { shellQuote } from 'sandbox'
 import { log } from '../runtime/log.ts'
 

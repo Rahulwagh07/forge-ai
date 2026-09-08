@@ -20,6 +20,7 @@ import {
 } from '@/lib/constants'
 import type {
   ChatItem,
+  DiffFileMeta,
   PullRequestInfo,
   SessionStatus,
   StoredStep,
@@ -35,6 +36,7 @@ export function WorkspaceLayout({
   initialBranchName,
   initialPrUrl,
   initialPrState,
+  initialDiffFiles,
 }: {
   sessionId: string
   initialSteps: StoredStep[]
@@ -44,6 +46,7 @@ export function WorkspaceLayout({
   initialBranchName?: string | null
   initialPrUrl?: string | null
   initialPrState?: PrState
+  initialDiffFiles: DiffFileMeta[]
 }) {
   const isAsk = (mode ?? 'AGENT') === 'ASK'
   const normalizedPrompt = initialPrompt?.trim().replace(/\s+/g, ' ')
@@ -69,6 +72,7 @@ export function WorkspaceLayout({
   const [status, setStatus] = useState<SessionStatus>(initialStatus as SessionStatus)
   const [isThinking, setIsThinking] = useState(initialStatus === 'RUNNING')
   const [chunks, setChunks] = useState<TerminalChunk[]>([])
+  const [diffFiles, setDiffFiles] = useState<DiffFileMeta[]>(initialDiffFiles)
   const [branchName, setBranchName] = useState(initialBranchName)
   const [pr, setPr] = useState<PullRequestInfo | undefined>(initialPr)
   const [dockWidth, setDockWidth] = useState(DOCK_WIDTH_DEFAULT)
@@ -92,6 +96,7 @@ export function WorkspaceLayout({
       setIsThinking,
       setItems,
       setChunks,
+      setDiffFiles,
       setBranchName,
       setPr,
       branchName,
@@ -132,11 +137,7 @@ export function WorkspaceLayout({
     return result
   }, [items, pr])
   const terminalEntries = useMemo(() => toTerminalEntries(chatItems, chunks), [chatItems, chunks])
-  const latestDiffItem = useMemo(() => [...items].reverse().find((item) => item.diff), [items])
-  const latestDiff = latestDiffItem?.diff ?? ''
-  const fileCount =
-    latestDiffItem?.diffFiles ??
-    (latestDiff ? latestDiff.split(/^diff --git /m).filter(Boolean).length : 0)
+  const fileCount = diffFiles.length
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -194,11 +195,11 @@ export function WorkspaceLayout({
               : ''
   const dotClass =
     status === 'RUNNING'
-      ? 'animate-pulse bg-emerald-400'
+      ? 'animate-pulse bg-success'
       : status === 'FAILED'
-        ? 'bg-red-400'
+        ? 'bg-danger'
         : status === 'DONE'
-          ? 'bg-emerald-400'
+          ? 'bg-success'
           : 'bg-muted-foreground'
 
   if (isAsk) {
@@ -286,7 +287,8 @@ export function WorkspaceLayout({
             >
               <AgentDock
                 entries={terminalEntries}
-                diff={latestDiff}
+                sessionId={sessionId}
+                diffFiles={diffFiles}
                 fileCount={fileCount}
                 onClose={() => setDockOpen(false)}
               />

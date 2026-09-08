@@ -4,7 +4,8 @@ import { prisma } from 'db'
 import { WorkspaceLayout } from '@/components/workspace/shell/workspace-layout'
 import { parsePullRequestUrl, type PrState } from '@/lib/pull-request'
 import { getPullRequestState } from '@/lib/pr-state'
-import type { StoredStep } from '@/lib/types'
+import { normalizeDiffFileStatus } from '@/lib/diff'
+import type { DiffFileMeta, StoredStep } from '@/lib/types'
 
 export default async function SessionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -39,6 +40,20 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
       createdAt: step.createdAt.toISOString(),
     }))
 
+  const diffRows = await prisma.sessionDiffFile.findMany({
+    where: { sessionId: id },
+    orderBy: { path: 'asc' },
+  })
+  const initialDiffFiles: DiffFileMeta[] = diffRows.map((row) => ({
+    path: row.path,
+    status: normalizeDiffFileStatus(row.status),
+    previousPath: row.previousPath ?? undefined,
+    additions: row.additions,
+    deletions: row.deletions,
+    binary: row.binary,
+    contentTooLarge: row.contentTooLarge,
+  }))
+
   let initialPrState: PrState | undefined
   if (dbSession.prUrl) {
     const ref = parsePullRequestUrl(dbSession.prUrl)
@@ -51,7 +66,7 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
   }
 
   return (
-    <main className="flex h-full min-h-0 w-full flex-1 flex-col px-3 md:px-4 xl:px-6">
+    <main className="flex h-full min-h-0 w-full flex-1 flex-col pl-3 md:pl-4 xl:pl-6">
       <WorkspaceLayout
         sessionId={id}
         initialSteps={steps}
@@ -61,6 +76,7 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
         initialBranchName={dbSession.branchName}
         initialPrUrl={dbSession.prUrl}
         initialPrState={initialPrState}
+        initialDiffFiles={initialDiffFiles}
       />
     </main>
   )

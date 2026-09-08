@@ -3,11 +3,11 @@ import { loadAppConfigFromEnv, mintInstallationToken, tokenEmbedUrl, type RepoRe
 import type { SandboxHandle } from 'sandbox'
 import { acquireSandbox, destroySandbox, touchSandbox } from '../sandbox/manager.ts'
 import type { ManagedSandbox } from '../sandbox/manager.ts'
-import { runAgentLoopForSession } from './loop.ts'
+import { runAgentLoopForSession } from './loop/index.ts'
 import { setSessionToken, clearSessionToken } from '../runtime/redaction.ts'
 import { publishEvent } from '../runtime/events.ts'
 import { log } from '../runtime/log.ts'
-import { getChangeStats, ensureBaseBranch } from '../sandbox/git.ts'
+import { getChangeStats, ensureBaseBranch } from '../sandbox/git/index.ts'
 import {
   finalizeIfNoSteering,
   pushAndNotify,

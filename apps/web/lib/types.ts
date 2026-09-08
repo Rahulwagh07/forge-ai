@@ -6,6 +6,31 @@ export type ToolCallData = {
   input: Record<string, unknown>
 }
 
+export type DiffFileStatus = 'created' | 'modified' | 'deleted' | 'renamed'
+
+export type DiffFileMeta = {
+  path: string
+  status: DiffFileStatus
+  previousPath?: string
+  additions: number
+  deletions: number
+  binary?: boolean
+  contentTooLarge?: boolean
+}
+
+export interface DiffFileContents {
+  oldContent: string
+  newContent: string
+  contentTooLarge: boolean
+  binary: boolean
+}
+
+export type DiffTotals = {
+  files: number
+  additions: number
+  deletions: number
+}
+
 export type StoredStepContent =
   | { message: string }
   | { text?: string; durationMs?: number; toolCalls?: ToolCallData[] }
@@ -18,7 +43,6 @@ export type StoredStepContent =
       isError?: boolean
       durationMs?: number
     }
-  | { diff: string; files?: number; additions?: number; deletions?: number; truncated?: boolean }
   | { step: number }
 
 export type StoredStep = {
@@ -60,12 +84,8 @@ export type SessionEvent =
     }
   | {
       type: 'diff'
-      diff: string
-      files?: number
-      additions?: number
-      deletions?: number
-      truncated?: boolean
-      stepNumber?: number
+      files: DiffFileMeta[]
+      totals: DiffTotals
     }
   | { type: 'branch_pushed'; branch: string }
   | { type: 'compaction'; stepNumber?: number }
@@ -97,9 +117,6 @@ export type ChatItem = {
   toolCallId?: string
   toolInput?: Record<string, unknown>
   toolOutput?: string
-  diff?: string
-  diffFiles?: number
-  diffTruncated?: boolean
   pr?: PullRequestInfo
   durationMs?: number
   isThinking?: boolean

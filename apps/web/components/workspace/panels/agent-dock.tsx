@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { FilePanel } from '@/components/workspace/panels/file-panel'
 import { TerminalPanel } from '@/components/workspace/panels/terminal-panel'
-import type { TerminalEntry } from '@/lib/types'
+import type { DiffFileMeta, TerminalEntry } from '@/lib/types'
 
 function FullscreenIcon({ size = 20, exit = false }: { size?: number; exit?: boolean }) {
   return (
@@ -35,12 +35,14 @@ function FullscreenIcon({ size = 20, exit = false }: { size?: number; exit?: boo
 
 export function AgentDock({
   entries,
-  diff,
+  sessionId,
+  diffFiles,
   fileCount,
   onClose,
 }: {
   entries: TerminalEntry[]
-  diff: string
+  sessionId: string
+  diffFiles: DiffFileMeta[]
   fileCount: number
   onClose: () => void
 }) {
@@ -61,7 +63,7 @@ export function AgentDock({
       className={
         fullscreen
           ? 'absolute inset-0 z-50 flex min-h-0 flex-col bg-background'
-          : 'flex min-h-0 flex-1 flex-col'
+          : 'flex min-h-0 flex-1 flex-col border-l-[0.5px]'
       }
     >
       <Tabs
@@ -69,7 +71,7 @@ export function AgentDock({
         onValueChange={(value) => setTab(String(value))}
         className="flex min-h-0 flex-1 flex-col gap-0"
       >
-        <div className="flex h-10 shrink-0 items-center gap-2 px-3">
+        <div className="flex h-10 shrink-0 items-center gap-2">
           <TabsList className="h-8 gap-0.5 bg-transparent">
             <TabsTrigger
               value="progress"
@@ -112,15 +114,23 @@ export function AgentDock({
         </div>
         <TabsContent
           value="progress"
-          className={fullscreen ? 'm-0 min-h-0 flex-1' : 'm-0 min-h-0 flex-1 p-3'}
+          className={
+            fullscreen
+              ? 'm-0 min-h-0 flex-1 overflow-hidden'
+              : 'm-0 min-h-0 flex-1 overflow-hidden pt-3'
+          }
         >
           <TerminalPanel entries={entries} />
         </TabsContent>
         <TabsContent
           value="changes"
-          className={fullscreen ? 'm-0 min-h-0 flex-1' : 'm-0 min-h-0 flex-1 p-3'}
+          className={
+            fullscreen
+              ? 'm-0 min-h-0 flex-1 overflow-hidden'
+              : 'm-0 min-h-0 flex-1 overflow-hidden border-t pt-3'
+          }
         >
-          <FilePanel diff={diff} />
+          <FilePanel sessionId={sessionId} files={diffFiles} />
         </TabsContent>
       </Tabs>
     </section>

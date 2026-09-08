@@ -58,7 +58,7 @@ export default async function ConnectGithubPage() {
         </p>
         <a
           href={installUrl}
-          className="mt-8 flex h-10 w-full max-w-sm items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-medium !text-black shadow-sm transition-colors hover:bg-white/90"
+          className="mt-8 flex h-10 w-full max-w-sm items-center justify-center gap-2 rounded-md px-4 text-sm font-medium btn-google shadow-sm transition-colors"
         >
           <HugeiconsIcon icon={GithubIcon} size={17} />
           Connect GitHub

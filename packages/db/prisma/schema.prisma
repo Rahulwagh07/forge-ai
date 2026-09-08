@@ -97,6 +97,26 @@ model Session {
   completedAt  DateTime?
 
   steps SessionStep[]
+  diffFiles SessionDiffFile[]
+}
+
+model SessionDiffFile {
+  id             String   @id @default(cuid())
+  sessionId      String
+  session        Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  path           String
+  status         String
+  previousPath   String?
+  additions      Int
+  deletions      Int
+  patch          String
+  oldContent     String?
+  newContent     String?
+  contentTooLarge Boolean @default(false)
+  binary         Boolean  @default(false)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([sessionId, path])
 }
 
 model SessionStep {

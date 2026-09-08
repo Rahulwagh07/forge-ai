@@ -89,16 +89,6 @@ export function initialChatItems(
         durationMs: 'durationMs' in content ? content.durationMs : undefined,
         createdAt: step.createdAt,
       })
-    } else if (step.type === 'DIFF' && 'diff' in content) {
-      items.push({
-        id,
-        role: 'system',
-        kind: 'event',
-        diff: content.diff,
-        diffFiles: 'files' in content ? (content.files as number | undefined) : undefined,
-        diffTruncated: 'truncated' in content ? Boolean(content.truncated) : undefined,
-        createdAt: step.createdAt,
-      })
     }
   }
 

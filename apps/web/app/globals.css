@@ -1,27 +1,30 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
-@import 'xterm/css/xterm.css';
 
-.xterm .xterm-viewport {
-  scrollbar-color: var(--border) transparent;
-  scrollbar-width: thin;
+[data-slot='diff-viewer'] {
+  --diff-add-bg: color-mix(in oklab, var(--color-green-500) 8%, transparent);
+  --diff-add-rule: var(--color-green-500);
+  --diff-add-text: var(--color-green-600);
+  --diff-add-text-dark: var(--color-green-400);
+  --diff-del-bg: color-mix(in oklab, var(--color-red-500) 8%, transparent);
+  --diff-del-rule: var(--color-red-500);
+  --diff-del-text: var(--color-red-600);
+  --diff-del-text-dark: var(--color-red-400);
 }
 
-.xterm .xterm-viewport::-webkit-scrollbar {
-  width: 0.625rem;
-  height: 0.625rem;
+[data-slot='diff-viewer-file'] {
+  line-height: 1.25rem;
 }
 
-.xterm .xterm-viewport::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.xterm .xterm-viewport::-webkit-scrollbar-thumb {
-  border: 0.1875rem solid transparent;
-  border-radius: 9999px;
-  background-clip: content-box;
-  background-color: var(--border);
+@layer components {
+  .btn-google {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+  .btn-google:hover {
+    background-color: rgb(255 255 255 / 0.9) !important;
+  }
 }
 
 .sidebar-scrollbar {
@@ -113,6 +116,26 @@ a {
   --color-foreground: var(--foreground);
   --color-background: var(--background);
   --color-chat-input: var(--chat-input);
+  --color-diff-surface: var(--diff-surface);
+  --color-diff-header: var(--diff-header);
+  --color-expand: var(--expand);
+  --color-expand-text: var(--expand-text);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-info: var(--info);
+  --color-info-hover: var(--info-hover);
+  --color-merged: var(--merged);
+  --color-code-bg: var(--code-bg);
+  --color-code-fg: var(--code-fg);
+  --color-code-muted: var(--code-muted);
+  --color-terminal: var(--terminal);
+  --color-terminal-dim: var(--terminal-dim);
+  --color-terminal-faint: var(--terminal-faint);
+  --text-terminal: 13px;
+  --text-terminal-badge: 11px;
+  --leading-terminal: 1.5;
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -146,6 +169,23 @@ a {
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
   --chat-input: #1f1f1f;
+  --diff-surface: #1f1f1f;
+  --diff-header: #191919;
+  --expand: #212834;
+  --expand-text: #2478c7;
+  --success: #34d399;
+  --danger: #f87171;
+  --warning: #d97706;
+  --warning-bg: rgb(245 158 11 / 0.2);
+  --info: #38bdf1;
+  --info-hover: #7dd3fc;
+  --merged: #c084fc;
+  --code-bg: #0a0a0a;
+  --code-fg: #e5e5e5;
+  --code-muted: #737373;
+  --terminal: rgb(255 255 255 / 0.85);
+  --terminal-dim: rgb(255 255 255 / 0.4);
+  --terminal-faint: rgb(255 255 255 / 0.35);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);

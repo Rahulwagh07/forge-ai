@@ -28,11 +28,7 @@ function formatDuration(durationMs: number): string {
 
 function PullRequestCard({ pr }: { pr: PullRequestInfo }) {
   const iconColor =
-    pr.state === 'closed'
-      ? 'text-red-400'
-      : pr.state === 'merged'
-        ? 'text-purple-400'
-        : 'text-emerald-400'
+    pr.state === 'closed' ? 'text-danger' : pr.state === 'merged' ? 'text-merged' : 'text-success'
   return (
     <div className="rounded-xl border bg-card p-3 shadow-sm">
       <div className="flex items-center gap-2 text-sm">
@@ -48,17 +44,15 @@ function PullRequestCard({ pr }: { pr: PullRequestInfo }) {
         {pr.repoFullName ? `${pr.repoFullName} #${pr.number}` : (pr.title ?? 'Agent changes')}
       </div>
       <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-        {pr.additions !== undefined ? (
-          <span className="text-emerald-500">+{pr.additions}</span>
-        ) : null}
-        {pr.deletions !== undefined ? <span className="text-red-400">-{pr.deletions}</span> : null}
+        {pr.additions !== undefined ? <span className="text-success">+{pr.additions}</span> : null}
+        {pr.deletions !== undefined ? <span className="text-danger">-{pr.deletions}</span> : null}
       </div>
       <div className="mt-3 flex items-center gap-2">
         <a
           href={pr.url}
           target="_blank"
           rel="noreferrer"
-          className="rounded-md px-2.5 py-1.5 !bg-white text-sm font-medium !text-black outline-none"
+          className="rounded-md px-2.5 py-1.5 text-sm font-medium btn-google outline-none"
         >
           Review pull request
         </a>
@@ -130,7 +124,7 @@ export function ActivityFeed({
         if (it.kind === 'status' && it.text?.includes('No changes')) {
           return (
             <div key={it.id} className="flex justify-center">
-              <div className="rounded-full bg-amber-500/20 px-3 py-1 text-sm text-amber-600">
+              <div className="rounded-full bg-warning-bg px-3 py-1 text-sm text-warning">
                 {it.text}
               </div>
             </div>

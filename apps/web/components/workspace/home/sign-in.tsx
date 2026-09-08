@@ -19,10 +19,7 @@ export function SignIn() {
           }}
           className="mt-10 w-full max-w-xs"
         >
-          <Button
-            type="submit"
-            className="h-10 w-full justify-center bg-white !text-black hover:bg-white/90 dark:bg-white dark:!text-black"
-          >
+          <Button type="submit" className="h-10 w-full justify-center btn-google">
             <GoogleMark />
             Sign in with Google
           </Button>

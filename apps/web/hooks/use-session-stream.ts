@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import type {
   ChatItem,
+  DiffFileMeta,
   PullRequestInfo,
   SessionEvent,
   SessionStatus,
@@ -18,6 +19,7 @@ export interface SessionStreamHandlers {
   setIsThinking: (thinking: boolean) => void
   setItems: (updater: (previous: ChatItem[]) => ChatItem[]) => void
   setChunks: (updater: (previous: TerminalChunk[]) => TerminalChunk[]) => void
+  setDiffFiles: (files: DiffFileMeta[]) => void
   setBranchName: (branch: string | null | undefined) => void
   setPr: (pr: PullRequestInfo | undefined) => void
   branchName: string | null | undefined
@@ -125,17 +127,7 @@ export function useSessionStream(
             return
           }
           case 'diff':
-            handlers.setItems((previous) => [
-              ...previous,
-              {
-                id: `sse-${handlers.genId()}-diff`,
-                role: 'system',
-                kind: 'event',
-                diff: data.diff,
-                diffFiles: data.files,
-                diffTruncated: data.truncated,
-              },
-            ])
+            handlers.setDiffFiles(data.files)
             return
           case 'branch_pushed':
             if (data.branch) handlers.setBranchName(data.branch)

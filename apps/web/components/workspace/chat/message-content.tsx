@@ -8,17 +8,15 @@ const components: Components = {
       {...props}
       target="_blank"
       rel="noreferrer"
-      className="text-sky-400 underline underline-offset-2 outline-none hover:text-sky-300"
+      className="text-info underline underline-offset-2 outline-none hover:text-info-hover"
     >
       {children}
     </a>
   ),
   p: ({ children }) => <p className="whitespace-pre-wrap leading-relaxed">{children}</p>,
   pre: ({ children }) => (
-    <div className="overflow-hidden rounded-lg bg-neutral-950/90 text-left">
-      <pre className="overflow-x-auto px-3 py-2.5 text-sm leading-5 text-neutral-200">
-        {children}
-      </pre>
+    <div className="overflow-hidden rounded-lg bg-code-bg/90 text-left">
+      <pre className="overflow-x-auto px-3 py-2.5 text-sm leading-5 text-code-fg">{children}</pre>
     </div>
   ),
   code: ({ className, children }) => {
@@ -26,10 +24,10 @@ const components: Components = {
     if (language) {
       return (
         <>
-          <div className="px-3 py-1.5 text-sm uppercase tracking-wide text-neutral-500">
+          <div className="px-3 py-1.5 text-sm uppercase tracking-wide text-code-muted">
             {language}
           </div>
-          <code className="block overflow-x-auto px-3 py-2.5 text-sm leading-5 text-neutral-200">
+          <code className="block overflow-x-auto px-3 py-2.5 text-sm leading-5 text-code-fg">
             {children}
           </code>
         </>

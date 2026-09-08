@@ -1,48 +1,60 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { ChevronRightIcon, Copy01Icon, Search01Icon, Tick02Icon } from '@hugeicons/core-free-icons'
-import { Input } from '@/components/ui/input'
+import { useEffect, useMemo, useState } from 'react'
+import { useHotkeys } from 'react-hotkeys-hook'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { parseDiff, type DiffLine } from '@/components/workspace/panels/diff-utils'
-import { splitPath } from '@/lib/utils'
+import { DiffViewerStats } from '@/components/ui/diff-viewer'
+import { placeholderFileFromMeta, sumDiffTotals } from '@/lib/diff'
+import { DiffFile } from '@/components/workspace/panels/diff-file'
+import { ViewToggle, type DiffView } from '@/components/workspace/panels/view-toggle'
+import { useFileDiffs } from '@/hooks/use-file-diffs'
+import type { DiffFileMeta } from '@/lib/types'
 
-function lineClass(kind: DiffLine['kind']): string {
-  if (kind === 'addition') return 'bg-emerald-500/10 text-emerald-300'
-  if (kind === 'deletion') return 'bg-red-500/10 text-red-300'
-  if (kind === 'hunk') return 'bg-blue-500/10 text-blue-300'
-  return 'text-foreground'
-}
+export function FilePanel({ sessionId, files }: { sessionId: string; files: DiffFileMeta[] }) {
+  const totals = useMemo(() => sumDiffTotals(files), [files])
+  const [view, setView] = useState<DiffView>('unified')
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
+  const {
+    expanded,
+    loaded,
+    loadingPaths,
+    contentsCache,
+    loadFileDiff,
+    loadFileContents,
+    toggleExpanded,
+  } = useFileDiffs(sessionId, files)
 
-export function FilePanel({ diff }: { diff: string }) {
-  const files = useMemo(() => parseDiff(diff), [diff])
-  const [query, setQuery] = useState('')
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
-  const [copiedPath, setCopiedPath] = useState<string | null>(null)
-  const visibleFiles = files.filter((file) => file.path.toLowerCase().includes(query.toLowerCase()))
+  useEffect(() => {
+    setActiveIndex((index) => Math.min(index, Math.max(0, files.length - 1)))
+  }, [files.length])
 
-  function toggle(path: string) {
-    setExpanded((previous) => {
-      const next = new Set(previous)
-      if (next.has(path)) next.delete(path)
-      else next.add(path)
+  const virtualizer = useVirtualizer({
+    count: files.length,
+    getScrollElement: () => scrollElement,
+    getItemKey: (index) => files[index]?.path ?? `index-${index}`,
+    estimateSize: () => 49,
+    overscan: 4,
+  })
+
+  function handleToggle(index: number, path: string) {
+    setActiveIndex(index)
+    const opening = !expanded.has(path)
+    toggleExpanded(path)
+    if (opening && !loaded.has(path)) void loadFileDiff(path)
+  }
+
+  function moveActiveFile(delta: 1 | -1) {
+    setActiveIndex((index) => {
+      const next = Math.min(Math.max(0, index + delta), Math.max(0, files.length - 1))
+      virtualizer.scrollToIndex(next, { align: 'auto' })
       return next
     })
   }
 
-  async function copyPath(event: React.MouseEvent, path: string) {
-    event.stopPropagation()
-    try {
-      await navigator.clipboard.writeText(path)
-      setCopiedPath(path)
-      window.setTimeout(() => {
-        setCopiedPath((current) => (current === path ? null : current))
-      }, 1200)
-    } catch {
-      // clipboard unavailable
-    }
-  }
+  useHotkeys('n', () => moveActiveFile(1), { enabled: files.length > 0 }, [files])
+  useHotkeys('p', () => moveActiveFile(-1), { enabled: files.length > 0 }, [files])
 
   if (files.length === 0) {
     return (
@@ -55,104 +67,53 @@ export function FilePanel({ diff }: { diff: string }) {
     )
   }
 
+  const virtualItems = virtualizer.getVirtualItems()
+
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl">
-      <div className="flex shrink-0 items-center gap-2 px-3 py-2">
-        <div className="relative min-w-0 flex-1">
-          <HugeiconsIcon
-            icon={Search01Icon}
-            size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search files"
-            className="h-9 border-0 pl-9 text-sm"
-          />
-        </div>
-        <span className="shrink-0 text-sm text-muted-foreground">
-          {files.length} {files.length === 1 ? 'file' : 'files'}
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 pb-2 pl-3">
+        <span className="shrink-0 font-mono text-xs text-muted-foreground" role="status">
+          {totals.files} {totals.files === 1 ? 'file' : 'files'}
         </span>
+        <DiffViewerStats additions={totals.additions} deletions={totals.deletions} />
+        <ViewToggle view={view} onChange={setView} />
       </div>
-      <ScrollArea className="min-h-0 flex-1 bg-background">
-        <div className="divide-y divide-border">
-          {visibleFiles.map((file) => {
-            const { name, dir } = splitPath(file.path)
-            const open = expanded.has(file.path)
+      <ScrollArea viewportRef={setScrollElement} className="min-h-0 flex-1">
+        <div
+          role="list"
+          aria-label="Changed files"
+          className="relative w-full"
+          style={{ height: virtualizer.getTotalSize() }}
+        >
+          {virtualItems.map((virtualItem) => {
+            const meta = files[virtualItem.index]
+            if (meta === undefined) return null
+            const loadedFile = loaded.get(meta.path)
+            const file = loadedFile ?? placeholderFileFromMeta(meta)
+            const loading = !loadedFile && loadingPaths.has(meta.path)
             return (
-              <div key={file.path}>
-                <div className="flex w-full items-center gap-1.5 px-2 py-2 text-sm hover:bg-muted/40">
-                  <button
-                    type="button"
-                    onClick={() => toggle(file.path)}
-                    aria-expanded={open}
-                    className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-                  >
-                    <HugeiconsIcon
-                      icon={ChevronRightIcon}
-                      size={14}
-                      className={`shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-90' : ''}`}
-                    />
-                    <span className="min-w-0 flex-1 truncate">
-                      <span className="font-medium text-foreground">{name}</span>
-                      {dir ? (
-                        <span className="ml-2 truncate font-mono text-muted-foreground">{dir}</span>
-                      ) : null}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(event) => void copyPath(event, file.path)}
-                    className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    title="Copy file path"
-                    aria-label={`Copy path ${file.path}`}
-                  >
-                    <HugeiconsIcon
-                      icon={copiedPath === file.path ? Tick02Icon : Copy01Icon}
-                      size={14}
-                    />
-                  </button>
-                  <span className="shrink-0 font-mono text-sm text-emerald-400">
-                    +{file.additions}
-                  </span>
-                  <span className="shrink-0 font-mono text-sm text-red-400">-{file.deletions}</span>
-                </div>
-                {open ? (
-                  <div className="min-w-max border-t border-border py-2 font-mono text-sm leading-5">
-                    {file.lines.map((line, index) => (
-                      <div
-                        key={`${file.path}-${index}`}
-                        className={`flex min-h-5 whitespace-pre ${lineClass(line.kind)}`}
-                      >
-                        <span className="w-12 shrink-0 select-none border-r border-border px-2 text-right text-muted-foreground">
-                          {line.oldLine ?? ''}
-                        </span>
-                        <span className="w-12 shrink-0 select-none border-r border-border px-2 text-right text-muted-foreground">
-                          {line.newLine ?? ''}
-                        </span>
-                        <span className="w-5 shrink-0 select-none px-1 text-center">
-                          {line.kind === 'addition' ? '+' : line.kind === 'deletion' ? '-' : ' '}
-                        </span>
-                        <span className="px-2">
-                          {(line.kind === 'addition' ||
-                          line.kind === 'deletion' ||
-                          line.kind === 'context'
-                            ? line.text.slice(1)
-                            : line.text) || ' '}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
+              <div
+                key={virtualItem.key}
+                role="listitem"
+                data-index={virtualItem.index}
+                ref={virtualizer.measureElement}
+                className="absolute top-0 left-0 w-full"
+                style={{ transform: `translateY(${virtualItem.start}px)` }}
+              >
+                <DiffFile
+                  file={file}
+                  view={view}
+                  open={expanded.has(meta.path)}
+                  active={virtualItem.index === activeIndex}
+                  loading={loading}
+                  binary={meta.binary ?? false}
+                  contents={contentsCache.get(meta.path) ?? null}
+                  onNeedContents={() => loadFileContents(meta.path)}
+                  onToggle={() => handleToggle(virtualItem.index, meta.path)}
+                />
               </div>
             )
           })}
-          {visibleFiles.length === 0 ? (
-            <div className="grid place-items-center p-8 text-sm text-muted-foreground">
-              No matching files
-            </div>
-          ) : null}
         </div>
       </ScrollArea>
     </div>

@@ -1,51 +1,18 @@
 import { prisma } from 'db'
-import type { SessionStep } from 'db'
+import { ASK_SYSTEM_PROMPT, OpenAIProvider, runAgentLoop, truncateToolOutput } from 'agent-core'
+import type { AgentMessage, FileOps, RunLoopOptions } from 'agent-core'
+import { env } from '../../env.ts'
+import { publishEvent, toJsonValue } from '../../runtime/events.ts'
+import { log } from '../../runtime/log.ts'
+import { loadCompactionSettings, persistCheckpoint, summarizeWithLLM } from '../compaction.ts'
 import {
-  ASK_SYSTEM_PROMPT,
-  OpenAIProvider,
-  SYSTEM_PROMPT,
-  runAgentLoop,
-  truncateToolOutput,
-} from 'agent-core'
-import type { AgentMessage, FileOps, LoopResult, RunLoopOptions, ToolCall } from 'agent-core'
-import type { SandboxHandle } from 'sandbox'
-import { env } from '../env.ts'
-import type { ManagedSandbox } from '../sandbox/manager.ts'
-import { getDiffWithStats } from '../sandbox/git.ts'
-import { publishEvent, toJsonValue } from '../runtime/events.ts'
-import { log } from '../runtime/log.ts'
-import {
-  loadCompactionSettings,
-  loadLatestCheckpoint,
-  persistCheckpoint,
-  summarizeWithLLM,
-  summaryMessage,
-  type CheckpointSummary,
-} from './compaction.ts'
-
-const STORED_TOOL_OUTPUT_CHARS = 20000
-const RESUME_HISTORY_LIMIT = 200
-const RESUME_TOOL_OUTPUT_CHARS = 8000
-
-export interface AgentLoopContext {
-  sessionId: string
-  prompt: string
-  isAsk: boolean
-  defaultBranch: string
-  sandbox: SandboxHandle
-  managedSandbox: ManagedSandbox
-  authUrl: string
-}
-
-export interface AgentLoopOutcome {
-  result: LoopResult
-  commitRequested: boolean
-}
-
-interface CompactionTracker {
-  previousSummary: string | undefined
-  cumulativeFileOps: FileOps
-}
+  STORED_TOOL_OUTPUT_CHARS,
+  type AgentLoopContext,
+  type AgentLoopOutcome,
+  type CompactionTracker,
+} from './types.ts'
+import { buildInitialMessages, claimReplayedSteering, loadResumeHistory } from './resume.ts'
+import { syncDiffAfterTool } from './diff-sync.ts'
 
 async function summarizeAndCheckpoint(
   sessionId: string,
@@ -236,31 +203,14 @@ export async function runAgentLoopForSession(ctx: AgentLoopContext): Promise<Age
       }
 
       if (['writeFile', 'runCommand', 'commitAndOpenPR'].includes(event.toolName)) {
-        const { diff, truncated, stats } = await getDiffWithStats(
+        await syncDiffAfterTool(
           sandbox,
+          sessionId,
           ctx.defaultBranch,
           !hasFetchedDiffBase,
           ctx.authUrl,
         )
         hasFetchedDiffBase = true
-        if (diff) {
-          const diffEvent = {
-            type: 'diff',
-            diff,
-            ...stats,
-            truncated,
-            stepNumber: stepNumberOffset + event.stepNumber,
-          }
-          await prisma.sessionStep.create({
-            data: {
-              sessionId,
-              stepNumber: stepNumberOffset + event.stepNumber,
-              type: 'DIFF',
-              content: toJsonValue(sessionId, diffEvent),
-            },
-          })
-          await publishEvent(sessionId, diffEvent)
-        }
       }
     },
   }
@@ -280,121 +230,4 @@ export async function runAgentLoopForSession(ctx: AgentLoopContext): Promise<Age
   const result = await runAgentLoop(loopOptions)
 
   return { result, commitRequested }
-}
-
-async function loadResumeHistory(sessionId: string): Promise<{
-  stepNumberOffset: number
-  historySteps: SessionStep[]
-  checkpoint: CheckpointSummary | null
-}> {
-  const [maxStepNumber, checkpoint] = await Promise.all([
-    prisma.sessionStep.aggregate({ where: { sessionId }, _max: { stepNumber: true } }),
-    loadLatestCheckpoint(sessionId).catch((error) => {
-      log.warn('failed to load compaction checkpoint, resuming from full history', {
-        sessionId,
-        error: error instanceof Error ? error.message : String(error),
-      })
-      return null
-    }),
-  ])
-  const historySteps = await prisma.sessionStep.findMany({
-    where: {
-      sessionId,
-      ...(checkpoint ? { stepNumber: { gte: checkpoint.firstKeptStepNumber } } : {}),
-    },
-    orderBy: [{ stepNumber: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
-    take: RESUME_HISTORY_LIMIT,
-  })
-  historySteps.reverse()
-  return { stepNumberOffset: maxStepNumber._max.stepNumber ?? 0, historySteps, checkpoint }
-}
-
-async function claimReplayedSteering(
-  sessionId: string,
-  historySteps: SessionStep[],
-): Promise<void> {
-  const replayedSteeringIds = historySteps
-    .filter((step) => step.type === 'STEERING' && !step.consumedAt)
-    .map((step) => step.id)
-  if (replayedSteeringIds.length === 0) return
-  await prisma.sessionStep
-    .updateMany({
-      where: { id: { in: replayedSteeringIds }, consumedAt: null },
-      data: { consumedAt: new Date() },
-    })
-    .catch((error) =>
-      log.warn('failed to claim replayed steering', {
-        sessionId,
-        error: error instanceof Error ? error.message : String(error),
-      }),
-    )
-}
-
-function buildInitialMessages(
-  prompt: string,
-  isAsk: boolean,
-  historySteps: SessionStep[],
-  checkpoint: CheckpointSummary | null = null,
-): AgentMessage[] {
-  const systemPrompt = isAsk ? ASK_SYSTEM_PROMPT : SYSTEM_PROMPT
-  const messages: AgentMessage[] = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: prompt },
-  ]
-  if (checkpoint) messages.push(summaryMessage(checkpoint))
-
-  const firstReplayableIndex = historySteps.findIndex(
-    (step) => step.type === 'STEERING' || step.type === 'THOUGHT' || step.type === 'TOOL_CALL',
-  )
-  const replayableSteps = firstReplayableIndex < 0 ? [] : historySteps.slice(firstReplayableIndex)
-
-  for (const step of replayableSteps) {
-    const content = step.content as Record<string, unknown>
-    if (step.type === 'STEERING') {
-      // only re-deliver steering that was never fed to the model live.
-      if (!step.consumedAt) {
-        messages.push({
-          role: 'user',
-          content:
-            typeof content.message === 'string' ? content.message : JSON.stringify(step.content),
-        })
-      }
-    } else if (step.type === 'THOUGHT') {
-      messages.push({
-        role: 'assistant',
-        content: typeof content.text === 'string' ? content.text : '',
-      })
-    } else if (step.type === 'TOOL_CALL') {
-      if (Array.isArray(content.toolCalls))
-        messages.push({
-          role: 'assistant',
-          content: typeof content.text === 'string' ? content.text : '',
-          toolCalls: content.toolCalls as ToolCall[],
-        })
-    } else if (step.type === 'TOOL_RESULT') {
-      const rawOutput =
-        typeof content.output === 'string'
-          ? content.output
-          : typeof content.content === 'string'
-            ? content.content
-            : ''
-      messages.push({
-        role: 'tool_result',
-        toolCallId: typeof content.toolCallId === 'string' ? content.toolCallId : 'unknown',
-        content: truncateToolOutput(rawOutput, RESUME_TOOL_OUTPUT_CHARS),
-        isError: Boolean(content.isError),
-      })
-    }
-  }
-
-  // drop a trailing TOOL_CALL that has no matching TOOL_RESULT
-  const lastMessage = messages[messages.length - 1]
-  if (
-    lastMessage?.role === 'assistant' &&
-    lastMessage.toolCalls &&
-    lastMessage.toolCalls.length > 0
-  ) {
-    messages.pop()
-  }
-  return messages
 }

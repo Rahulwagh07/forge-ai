@@ -122,7 +122,7 @@ export function AppSidebar({
                         <span className="flex w-full items-center gap-1.5 text-sm leading-snug">
                           {s.status === 'RUNNING' ? (
                             <span
-                              className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-400"
+                              className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-success"
                               aria-label="Running"
                             />
                           ) : null}
