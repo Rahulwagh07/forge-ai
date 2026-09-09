@@ -1,9 +1,11 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowUp02Icon } from '@hugeicons/core-free-icons'
 import { matchCommands } from '@/lib/commands'
 import type { SessionStatus } from '@/lib/types'
+
+const COMPOSER_MAX_HEIGHT = 200
 
 export function Composer({
   status,
@@ -21,6 +23,15 @@ export function Composer({
   const [value, setValue] = useState('')
   const [dismissed, setDismissed] = useState(false)
   const [activeIdx, setActiveIdx] = useState(0)
+  const taRef = useRef<HTMLTextAreaElement>(null)
+  // auto grow upward as the user types
+  useEffect(() => {
+    const el = taRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, COMPOSER_MAX_HEIGHT)}px`
+    el.style.overflowY = el.scrollHeight > COMPOSER_MAX_HEIGHT ? 'auto' : 'hidden'
+  }, [value])
   const slashQuery = value.match(/^\/(\w*)$/)?.[1]
   const matches = slashQuery !== undefined && !dismissed ? matchCommands(slashQuery) : []
   const open = matches.length > 0
@@ -85,7 +96,7 @@ export function Composer({
   }
 
   return (
-    <div className="relative rounded-2xl bg-chat-input p-3 shadow-sm">
+    <div className="relative rounded-2xl border border-border bg-chat-input p-2 shadow-sm">
       {open ? (
         <div className="absolute inset-x-3 bottom-full mb-1 overflow-hidden rounded-md bg-popover text-sm text-popover-foreground shadow-md outline-none">
           {matches.map((cmd, i) => (
@@ -103,6 +114,7 @@ export function Composer({
         </div>
       ) : null}
       <textarea
+        ref={taRef}
         value={value}
         onChange={(e) => {
           setValue(e.target.value)
@@ -111,9 +123,9 @@ export function Composer({
         }}
         placeholder={ph}
         disabled={status ? !canSteer : false}
-        rows={3}
+        rows={2}
         onKeyDown={handleKeyDown}
-        className="w-full resize-none bg-transparent p-2 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50"
+        className="max-h-[200px] w-full resize-none bg-transparent p-2 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50"
       />
       <div className="mt-2 flex items-center justify-end gap-2">
         <button

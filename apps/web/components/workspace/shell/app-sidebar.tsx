@@ -1,6 +1,6 @@
 'use client'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -20,64 +20,48 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { listSessions, type SessionSummary } from '@/lib/api'
-import { SESSION_LIST_REFRESH_MS } from '@/lib/constants'
 import { UserAvatar } from '@/components/workspace/shell/user-avatar'
+import { RepoAvatar } from '@/components/workspace/repo-avatar'
+import { RunningRepoAvatar } from '@/components/workspace/running-repo-avatar'
 import { timeAgo } from '@/lib/utils'
 
-export function AppSidebar({
+type SidebarUser = {
+  name?: string | null
+  email?: string | null
+  avatarUrl?: string | null
+} | null
+
+function SidebarBody({
   user,
-  recentSessions,
+  sessions,
+  pathname,
+  onSelectSession,
+  onLinkNavigate,
+  onOpenSearch,
+  searchOpen,
+  onSearchOpenChange,
+  onClose,
+  closeTitle,
 }: {
-  user?: {
-    name?: string | null
-    email?: string | null
-    avatarUrl?: string | null
-  } | null
-  recentSessions: SessionSummary[]
+  user: SidebarUser
+  sessions: SessionSummary[]
+  pathname: string
+  onSelectSession: (id: string) => void
+  onLinkNavigate: () => void
+  onOpenSearch: () => void
+  searchOpen: boolean
+  onSearchOpenChange: (open: boolean) => void
+  onClose: () => void
+  closeTitle: string
 }) {
-  const pathname = usePathname()
-  const router = useRouter()
-  const { toggleSidebar } = useSidebar()
-  const [sessions, setSessions] = useState(recentSessions)
-  const [searchOpen, setSearchOpen] = useState(false)
-
-  useHotkeys('ctrl+k', (event) => {
-    event.preventDefault()
-    setSearchOpen((open) => !open)
-  })
-  useHotkeys('ctrl+shift+0', (event) => {
-    event.preventDefault()
-    router.push('/')
-  })
-
-  useEffect(() => {
-    setSessions(recentSessions)
-  }, [recentSessions])
-
-  useEffect(() => {
-    if (pathname === '/connect-github') return
-    const refresh = async () => {
-      try {
-        const data = await listSessions()
-        setSessions(data.sessions)
-      } catch {}
-    }
-    const timer = window.setInterval(() => {
-      void refresh()
-    }, SESSION_LIST_REFRESH_MS)
-    return () => window.clearInterval(timer)
-  }, [pathname])
-
-  if (pathname === '/connect-github') return null
-
   return (
-    <Sidebar className="bg-sidebar text-sidebar-foreground">
+    <>
       <SidebarHeader>
         <div className="flex items-center justify-between px-2 py-1">
           <UserAvatar user={user} size={6} />
           <div className="flex items-center gap-1 text-muted-foreground">
             <button
-              onClick={() => setSearchOpen(true)}
+              onClick={onOpenSearch}
               className="rounded p-1.5 hover:bg-sidebar-accent hover:text-sidebar-foreground"
               aria-label="Search sessions"
               title="Search sessions (Ctrl+K)"
@@ -85,10 +69,10 @@ export function AppSidebar({
               <HugeiconsIcon icon={Search01Icon} size={15} />
             </button>
             <button
-              onClick={toggleSidebar}
+              onClick={onClose}
               className="rounded p-1.5 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-              aria-label="Close sidebar"
-              title="Close sidebar"
+              aria-label={closeTitle}
+              title={closeTitle}
             >
               <HugeiconsIcon icon={PanelLeftIcon} size={14} />
             </button>
@@ -96,7 +80,8 @@ export function AppSidebar({
         </div>
         <Link
           href="/"
-          title="New session (Ctrl+Shift+0)"
+          title="New session (Ctrl+Shift+O)"
+          onClick={onLinkNavigate}
           className={`flex items-center gap-2 rounded-md px-2 py-2 text-sm font-medium hover:bg-sidebar-accent ${pathname === '/' ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}`}
         >
           <HugeiconsIcon icon={Add01Icon} size={14} /> New session
@@ -111,29 +96,34 @@ export function AppSidebar({
                 <div className="px-2 py-2 text-sm text-muted-foreground">No sessions yet</div>
               ) : (
                 sessions.map((s) => {
-                  const active = pathname === `/sessions/${s.id}`
+                  const isActive = pathname === `/sessions/${s.id}`
                   return (
                     <SidebarMenuItem key={s.id}>
                       <SidebarMenuButton
-                        isActive={active}
-                        className="h-auto flex-col items-start gap-1 py-2.5"
-                        onClick={() => router.push(`/sessions/${s.id}`)}
+                        isActive={isActive}
+                        className="h-auto py-2.5"
+                        onClick={() => onSelectSession(s.id)}
                       >
-                        <span className="flex w-full items-center gap-1.5 text-sm leading-snug">
-                          {s.status === 'RUNNING' ? (
-                            <span
-                              className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-success"
-                              aria-label="Running"
-                            />
-                          ) : null}
-                          <span className="min-w-0 flex-1 truncate">{s.prompt}</span>
-                        </span>
-                        <span className="flex w-full items-center gap-1.5 text-xs text-muted-foreground">
+                        <span className="flex w-full items-start gap-2">
                           {s.repoFullName ? (
-                            <span className="min-w-0 flex-1 truncate">{s.repoFullName}</span>
+                            s.status === 'RUNNING' ? (
+                              <RunningRepoAvatar fullName={s.repoFullName} size={22} />
+                            ) : (
+                              <RepoAvatar fullName={s.repoFullName} size={22} />
+                            )
                           ) : null}
-                          <span suppressHydrationWarning className="shrink-0">
-                            {timeAgo(s.createdAt)}
+                          <span className="min-w-0 flex-1">
+                            <span className="flex w-full items-center gap-1.5 text-sm leading-snug">
+                              <span className="min-w-0 flex-1 truncate">{s.prompt}</span>
+                            </span>
+                            <span className="flex w-full items-center gap-1.5 text-xs text-muted-foreground">
+                              {s.repoFullName ? (
+                                <span className="min-w-0 flex-1 truncate">{s.repoFullName}</span>
+                              ) : null}
+                              <span suppressHydrationWarning className="shrink-0">
+                                {timeAgo(s.createdAt)}
+                              </span>
+                            </span>
                           </span>
                         </span>
                       </SidebarMenuButton>
@@ -155,7 +145,145 @@ export function AppSidebar({
           <LogoutButton />
         </div>
       </SidebarFooter>
-      <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
-    </Sidebar>
+      <SearchDialog open={searchOpen} onOpenChange={onSearchOpenChange} />
+    </>
+  )
+}
+
+export function AppSidebar({
+  user,
+  recentSessions,
+}: {
+  user?: SidebarUser
+  recentSessions: SessionSummary[]
+}) {
+  const pathname = usePathname()
+  const router = useRouter()
+  const { open, setOpen, toggleSidebar } = useSidebar()
+  const [peek, setPeek] = useState(false)
+  const [peekShown, setPeekShown] = useState(false)
+  const closeTimer = useRef<number | null>(null)
+  const [sessions, setSessions] = useState(recentSessions)
+  const [searchOpen, setSearchOpen] = useState(false)
+
+  useHotkeys('ctrl+k', (event) => {
+    event.preventDefault()
+    setSearchOpen((open) => !open)
+  })
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.shiftKey && event.code === 'KeyO') {
+        event.preventDefault()
+        router.push('/')
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [router])
+
+  useEffect(() => {
+    setSessions(recentSessions)
+  }, [recentSessions])
+
+  useEffect(() => {
+    if (pathname === '/connect-github') return
+    const refresh = async () => {
+      try {
+        const data = await listSessions()
+        setSessions(data.sessions)
+      } catch {}
+    }
+    window.addEventListener('focus', refresh)
+    return () => window.removeEventListener('focus', refresh)
+  }, [pathname])
+
+  useEffect(() => {
+    const onStatus = (event: Event) => {
+      const detail = (event as CustomEvent<{ sessionId: string; status: string }>).detail
+      if (!detail) return
+      setSessions((previous) =>
+        previous.map((s) => (s.id === detail.sessionId ? { ...s, status: detail.status } : s)),
+      )
+    }
+    window.addEventListener('forge:session-status', onStatus)
+    return () => window.removeEventListener('forge:session-status', onStatus)
+  }, [])
+
+  function openPeek() {
+    if (closeTimer.current) {
+      window.clearTimeout(closeTimer.current)
+      closeTimer.current = null
+    }
+    setPeek(true)
+    requestAnimationFrame(() => requestAnimationFrame(() => setPeekShown(true)))
+  }
+
+  function closePeek() {
+    setPeekShown(false)
+    if (closeTimer.current) window.clearTimeout(closeTimer.current)
+    closeTimer.current = window.setTimeout(() => {
+      setPeek(false)
+      closeTimer.current = null
+    }, 200)
+  }
+
+  // Clicking the panel icon while peeking pins the real sidebar open.
+  function pinPeek() {
+    if (closeTimer.current) {
+      window.clearTimeout(closeTimer.current)
+      closeTimer.current = null
+    }
+    setPeek(false)
+    setPeekShown(false)
+    setOpen(true)
+  }
+
+  useEffect(
+    () => () => {
+      if (closeTimer.current) window.clearTimeout(closeTimer.current)
+    },
+    [],
+  )
+
+  if (pathname === '/connect-github') return null
+
+  const sidebarBody = (
+    <SidebarBody
+      user={user ?? null}
+      sessions={sessions}
+      pathname={pathname}
+      onSelectSession={(id) => {
+        closePeek()
+        router.push(`/sessions/${id}`)
+      }}
+      onLinkNavigate={closePeek}
+      onOpenSearch={() => setSearchOpen(true)}
+      searchOpen={searchOpen}
+      onSearchOpenChange={setSearchOpen}
+      onClose={peek && !open ? pinPeek : toggleSidebar}
+      closeTitle={peek && !open ? 'Keep sidebar open' : 'Close sidebar'}
+    />
+  )
+
+  return (
+    <>
+      {!open && !peek ? (
+        <div
+          aria-hidden="true"
+          className="fixed inset-y-0 left-0 z-30 hidden w-3 md:block"
+          onMouseEnter={openPeek}
+        />
+      ) : null}
+      {peek && !open ? (
+        <div
+          onMouseEnter={openPeek}
+          onMouseLeave={closePeek}
+          className={`fixed inset-y-0 left-0 z-40 hidden w-80 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-[0_0.5rem_1.875rem_rgb(0_0_0/0.5)] transition-[transform,opacity] duration-200 ease-out md:flex ${peekShown ? 'translate-x-0 opacity-100' : '-translate-x-8 opacity-0'}`}
+        >
+          {sidebarBody}
+        </div>
+      ) : null}
+      <Sidebar className="bg-sidebar text-sidebar-foreground">{sidebarBody}</Sidebar>
+    </>
   )
 }

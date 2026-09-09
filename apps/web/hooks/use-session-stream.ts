@@ -43,6 +43,12 @@ export function useSessionStream(
             const nextStatus = data.status
             handlers.setStatus(nextStatus)
             handlers.setIsThinking(nextStatus === 'RUNNING')
+            // tell the sidebar so its running indicator stops
+            window.dispatchEvent(
+              new CustomEvent('forge:session-status', {
+                detail: { sessionId, status: nextStatus },
+              }),
+            )
             const error = data.error ?? ''
             if (
               (nextStatus === 'FAILED' ||

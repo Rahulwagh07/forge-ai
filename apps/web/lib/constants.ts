@@ -1,5 +1,4 @@
 export const MOBILE_BREAKPOINT = 768
-export const SESSION_LIST_REFRESH_MS = 10_000
 export const SSE_KEEPALIVE_MS = 15_000
 export const TERMINAL_SCROLLBACK = 10_000
 export const TITLE_MAX_LENGTH = 72

@@ -9,6 +9,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { RepoAvatar } from '@/components/workspace/repo-avatar'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Tick02Icon } from '@hugeicons/core-free-icons'
 
@@ -29,10 +30,10 @@ export function RepoSelectModal({
   onSelect: (id: string) => void
   onAddNew?: () => void
 }) {
-  const [temp, setTemp] = useState<string | null>(selectedId)
+  const [pendingId, setPendingId] = useState<string | null>(selectedId)
 
   function handleConfirm() {
-    if (temp) onSelect(temp)
+    if (pendingId) onSelect(pendingId)
     onOpenChange(false)
   }
 
@@ -52,18 +53,19 @@ export function RepoSelectModal({
             </div>
           ) : (
             repos.map((r) => {
-              const active = temp === r.id
+              const isSelected = pendingId === r.id
               return (
                 <button
                   key={r.id}
                   type="button"
-                  onClick={() => setTemp(r.id)}
-                  className={`flex w-full items-center justify-start gap-3 rounded-md px-4 py-2.5 text-left text-sm hover:bg-muted/40 ${active ? 'bg-muted/60' : ''}`}
+                  onClick={() => setPendingId(r.id)}
+                  className={`flex w-full items-center justify-start gap-3 rounded-md px-4 py-2.5 text-left text-sm hover:bg-muted/40 ${isSelected ? 'bg-muted/60' : ''}`}
                 >
+                  <RepoAvatar fullName={r.fullName} size={24} />
                   <span className="min-w-0 flex-1 truncate text-left font-medium">
                     {r.fullName}
                   </span>
-                  {active ? (
+                  {isSelected ? (
                     <HugeiconsIcon icon={Tick02Icon} size={16} className="shrink-0 text-primary" />
                   ) : null}
                 </button>
@@ -79,7 +81,7 @@ export function RepoSelectModal({
             <Button variant="secondary" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button disabled={!temp} onClick={handleConfirm}>
+            <Button disabled={!pendingId} onClick={handleConfirm}>
               Select repository
             </Button>
           </div>

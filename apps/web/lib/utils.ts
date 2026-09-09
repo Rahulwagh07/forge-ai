@@ -18,6 +18,15 @@ export function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+export function formatFullDate(iso?: string): string | undefined {
+  if (!iso) return undefined
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return undefined
+  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  return `${date}, ${time}`
+}
+
 export function splitPath(path: string): { name: string; dir: string } {
   const index = path.lastIndexOf('/')
   if (index < 0) return { name: path, dir: '' }

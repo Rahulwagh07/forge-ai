@@ -5,6 +5,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { PanelLeftIcon } from '@hugeicons/core-free-icons'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ActivityFeed } from '@/components/workspace/chat/activity-feed'
+import { describeToolCall } from '@/lib/session-chat'
 import { AgentDock } from '@/components/workspace/panels/agent-dock'
 import { Composer } from '@/components/workspace/chat/composer'
 import { initialChatItems, toTerminalEntries, withToolResults } from '@/lib/session-chat'
@@ -138,6 +139,15 @@ export function WorkspaceLayout({
   }, [items, pr])
   const terminalEntries = useMemo(() => toTerminalEntries(chatItems, chunks), [chatItems, chunks])
   const fileCount = diffFiles.length
+  const waitingOnUser = status === 'AWAITING_INPUT' || status === 'PAUSED'
+  const currentAction = useMemo(() => {
+    for (let i = chatItems.length - 1; i >= 0; i -= 1) {
+      const item = chatItems[i]
+      if (item?.kind === 'tool_call') return describeToolCall(item)
+      if (item?.role === 'assistant' || item?.role === 'user') break
+    }
+    return undefined
+  }, [chatItems])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -185,13 +195,15 @@ export function WorkspaceLayout({
     status === 'QUEUED'
       ? 'Waking up Forge...'
       : status === 'RUNNING'
-        ? 'Agent is working...'
+        ? currentAction
+          ? `${currentAction}...`
+          : 'Forge is working...'
         : status === 'AWAITING_INPUT' || status === 'PAUSED'
-          ? 'Forge is asleep'
+          ? 'Forge is waiting on you — reply above to continue'
           : status === 'DONE'
             ? 'Work completed'
             : status === 'FAILED'
-              ? 'Agent failed'
+              ? 'Forge hit an error — tell it how to proceed, or retry'
               : ''
   const dotClass =
     status === 'RUNNING'
@@ -206,7 +218,13 @@ export function WorkspaceLayout({
     return (
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <div className="absolute inset-0 overflow-y-auto">
-          <ActivityFeed items={chatItems} showThinking={isThinking} />
+          <ActivityFeed
+            items={chatItems}
+            showThinking={isThinking}
+            currentAction={currentAction}
+            waitingOnUser={waitingOnUser}
+            onWake={handleWake}
+          />
           <div ref={bottomRef} className="h-36" />
         </div>
         <div className="absolute inset-x-0 bottom-0 z-10 p-3">
@@ -239,33 +257,32 @@ export function WorkspaceLayout({
             </button>
           ) : null}
           <ScrollArea className="min-h-0 flex-1 chat-scroll">
-            <ActivityFeed items={chatItems} />
+            <ActivityFeed
+              items={chatItems}
+              showThinking={isThinking}
+              currentAction={currentAction}
+              waitingOnUser={waitingOnUser}
+              onWake={handleWake}
+            />
             <div ref={bottomRef} />
           </ScrollArea>
-          <div className="flex shrink-0 items-center">
-            <div className="mx-auto flex w-full max-w-3xl items-center gap-2 px-4 pb-1">
-              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotClass}`} />
-              <span className="truncate text-sm text-muted-foreground">{statusText}</span>
-              {status === 'FAILED' ? (
-                <button
-                  type="button"
-                  onClick={handleRetry}
-                  className="rounded-md bg-secondary px-2.5 py-1 text-sm font-medium text-secondary-foreground hover:bg-secondary/80"
-                >
-                  Retry session
-                </button>
-              ) : null}
-              {status === 'AWAITING_INPUT' || status === 'PAUSED' ? (
-                <button
-                  type="button"
-                  onClick={handleWake}
-                  className="rounded-md bg-secondary px-2.5 py-1 text-sm font-medium text-secondary-foreground hover:bg-secondary/80"
-                >
-                  Wake up Forge
-                </button>
-              ) : null}
+          {waitingOnUser || status === 'DONE' ? null : (
+            <div className="flex shrink-0 items-center">
+              <div className="mx-auto flex w-full max-w-3xl items-center gap-2 px-4 pb-1">
+                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotClass}`} />
+                <span className="truncate text-sm text-muted-foreground">{statusText}</span>
+                {status === 'FAILED' ? (
+                  <button
+                    type="button"
+                    onClick={handleRetry}
+                    className="rounded-md bg-secondary px-2.5 py-1 text-sm font-medium text-secondary-foreground hover:bg-secondary/80"
+                  >
+                    Retry session
+                  </button>
+                ) : null}
+              </div>
             </div>
-          </div>
+          )}
           <div className="shrink-0 pb-3">
             <div className="mx-auto w-full max-w-3xl px-4">
               <Composer status={status} onSend={handleSend} allowCompleted />

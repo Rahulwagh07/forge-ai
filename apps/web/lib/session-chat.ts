@@ -10,6 +10,40 @@ export function cleanPrTitle(title: string): string {
   return title.replace(/^Agent session:\s*/i, '').trim()
 }
 
+function truncate(value: unknown, max = 60): string {
+  const s = String(value ?? '').trim()
+  return s.length > max ? `${s.slice(0, max)}…` : s
+}
+
+export function describeToolCall(item: ChatItem): string {
+  const input = item.toolInput ?? {}
+  switch (item.toolName) {
+    case 'runCommand':
+      return input.cmd ? `Running \`${truncate(input.cmd)}\`` : 'Running a command'
+    case 'readFile':
+      return input.path
+        ? `Reading \`${truncate(input.path)}\` to understand the code`
+        : 'Reading a file'
+    case 'listDir':
+      return input.path
+        ? `Exploring \`${truncate(input.path)}\` to find relevant files`
+        : 'Exploring the repository'
+    case 'writeFile':
+      return input.path ? `Writing \`${truncate(input.path)}\`` : 'Writing a file'
+    case 'commitAndOpenPR':
+      return 'Pushing the branch and opening a pull request'
+    case 'finishSession':
+      return 'Wrapping up — telling you what changed and what I need next'
+    default:
+      return item.toolName ? `Working: ${item.toolName}` : 'Working'
+  }
+}
+
+export function formatDuration(durationMs: number): string {
+  const seconds = Math.round(durationMs / 1000)
+  return seconds > 0 ? `${seconds}s` : `${durationMs}ms`
+}
+
 export function initialChatItems(
   steps: StoredStep[],
   prompt?: string,

@@ -34,10 +34,10 @@ export function BranchSelect({
       disabled={disabled}
     >
       <Select.Trigger
-        className="flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none disabled:cursor-default disabled:opacity-70"
+        className="flex min-w-0 max-w-[12rem] cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none disabled:cursor-default disabled:opacity-70"
         aria-label="Base branch"
       >
-        <HugeiconsIcon icon={GitBranchIcon} size={12} />
+        <HugeiconsIcon icon={GitBranchIcon} size={12} className="shrink-0" />
         <span className="truncate">{value}</span>
       </Select.Trigger>
       <Select.Portal>

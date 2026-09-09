@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { Folder01Icon } from '@hugeicons/core-free-icons'
+import { RepoAvatar } from '@/components/workspace/repo-avatar'
+import { repoSlug } from '@/lib/repo'
 import { RepoSelectModal } from '@/components/workspace/home/repo-select-modal'
 import { BranchSelect } from '@/components/workspace/home/branch-select'
 import { Composer } from '@/components/workspace/chat/composer'
@@ -85,6 +85,7 @@ export function HomeChat({
         baseBranch: activeBranch,
       })
       router.push(`/sessions/${data.sessionId}`)
+      router.refresh()
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Failed to create session')
     }
@@ -155,13 +156,15 @@ export function HomeChat({
       <div className="mx-auto w-full max-w-3xl">
         <Composer onSend={handleSubmit} placeholder="Ask Forge questions about your code" />
       </div>
-      <div className="mt-3 flex items-center gap-1 text-sm">
+      <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
         <button
           onClick={() => setRepoModalOpen(true)}
-          className="flex items-center gap-1.5 font-medium text-primary hover:underline"
+          className="flex min-w-0 max-w-full items-center gap-1.5 font-medium text-primary group"
         >
-          <HugeiconsIcon icon={Folder01Icon} size={14} className="text-primary" />
-          <span>{selected?.fullName ?? 'Select repository'}</span>
+          {selected ? <RepoAvatar fullName={selected.fullName} size={18} /> : null}
+          <span className="truncate group-hover:underline">
+            {selected ? repoSlug(selected.fullName) : 'Select repository'}
+          </span>
         </button>
         <BranchSelect
           value={activeBranch}
