@@ -59,6 +59,7 @@ export interface RunLoopOptions {
   maxWallClockMs?: number
   readOnly?: boolean
   onStep?: (event: LoopStepEvent) => void | Promise<void>
+  onToken?: (event: { stepNumber: number; delta: string }) => void
   onToolOutput?: (event: LoopToolOutputEvent) => void
   onToolResult?: (event: LoopToolResultEvent) => void | Promise<void>
   getSteeringMessages?: () => string[] | Promise<string[]>
@@ -168,9 +169,10 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
     }
 
     const stepStartedAt = Date.now()
+    const emitToken = (delta: string) => opts.onToken?.({ stepNumber, delta })
     let response: ProviderResponse
     try {
-      response = await provider.runStep(messages, TOOL_DEFINITIONS)
+      response = await provider.runStep(messages, TOOL_DEFINITIONS, emitToken)
     } catch (err) {
       // Overflow recovery: one retry, then fail
       const recovered =
@@ -178,7 +180,7 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
         isContextOverflowError(err) &&
         (await tryCompactLoop(messages, compaction, compactionState, stepNumber, true))
       if (!recovered) throw err
-      response = await provider.runStep(messages, TOOL_DEFINITIONS)
+      response = await provider.runStep(messages, TOOL_DEFINITIONS, emitToken)
     }
     if (typeof response.usage?.inputTokens === 'number') {
       lastPromptTokens = response.usage.inputTokens

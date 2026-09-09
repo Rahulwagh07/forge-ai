@@ -1,9 +1,8 @@
 import type {
-  ChatCompletionMessage,
   ChatCompletionMessageParam,
   ChatCompletionTool,
 } from 'openai/resources/chat/completions'
-import type { AgentMessage, ProviderResponse, ToolCall, ToolDefinition } from '../../provider.ts'
+import type { AgentMessage, ProviderResponse, ToolDefinition } from '../../provider.ts'
 
 export function convertAgentMessage(msg: AgentMessage): ChatCompletionMessageParam {
   switch (msg.role) {
@@ -67,14 +66,4 @@ export function parseToolCallArguments(raw: string | null | undefined): Record<s
   } catch {
     return {}
   }
-}
-
-export function extractToolCalls(message: Pick<ChatCompletionMessage, 'tool_calls'>): ToolCall[] {
-  return (message.tool_calls ?? [])
-    .filter((toolCall) => toolCall.type === 'function')
-    .map((toolCall) => ({
-      id: toolCall.id,
-      name: toolCall.function.name,
-      input: parseToolCallArguments(toolCall.function.arguments),
-    }))
 }

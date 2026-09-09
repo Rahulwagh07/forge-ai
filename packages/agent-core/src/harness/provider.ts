@@ -37,7 +37,11 @@ export type AgentMessage =
 
 export interface LLMProvider {
   readonly contextWindow: number
-  runStep(messages: AgentMessage[], tools: ToolDefinition[]): Promise<ProviderResponse>
+  runStep(
+    messages: AgentMessage[],
+    tools: ToolDefinition[],
+    onToken?: (delta: string) => void,
+  ): Promise<ProviderResponse>
 }
 
 export type ProviderErrorCategory =

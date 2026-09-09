@@ -136,6 +136,13 @@ export async function runAgentLoopForSession(ctx: AgentLoopContext): Promise<Age
       }
       return deliveredMessages
     },
+    onToken: (event) => {
+      publishEvent(sessionId, {
+        type: 'step_delta',
+        stepNumber: stepNumberOffset + event.stepNumber,
+        delta: event.delta,
+      }).catch((err) => log.error('failed to publish step delta', { error: String(err) }))
+    },
     onStep: async (event) => {
       // bump lastActiveAt every step (idle window)
       await prisma.session.update({

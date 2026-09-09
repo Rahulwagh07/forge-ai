@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
         : {}),
     },
     orderBy: { createdAt: 'desc' },
-    take: q ? 50 : 10,
+    take: q ? 50 : 30,
     select: {
       id: true,
       prompt: true,

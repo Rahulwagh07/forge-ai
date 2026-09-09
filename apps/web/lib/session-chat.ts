@@ -89,7 +89,7 @@ export function initialChatItems(
           id: `${id}-thought`,
           role: 'assistant',
           kind: 'thought',
-          isThinking: true,
+          isThinking: false,
           text,
           durationMs: 'durationMs' in content ? content.durationMs : undefined,
           createdAt: step.createdAt,

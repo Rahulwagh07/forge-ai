@@ -17,17 +17,19 @@ export function ThinkingBlock({
   items,
   additions,
   deletions,
+  nested,
 }: {
   items: ChatItem[]
   additions?: number
   deletions?: number
+  nested?: boolean
 }) {
   const first = items[0]
   if (!first) return null
   const durationMs = items.reduce((total, item) => total + (item.durationMs ?? 0), 0)
   const duration = durationMs > 0 ? ` for ${formatDuration(durationMs)}` : ''
   return (
-    <details className="group ml-8">
+    <details className={nested ? 'group mt-2' : 'group ml-8'}>
       <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[13px] text-muted-foreground outline-none marker:hidden">
         <span className="text-[13px] leading-none transition-transform group-open:rotate-90">
           ›

@@ -80,6 +80,9 @@ export function WorkspaceLayout({
   const [dockOpen, setDockOpen] = useState(true)
   const layoutRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const stickRef = useRef(true)
+  const [showJump, setShowJump] = useState(false)
   const resizingRef = useRef(false)
   const idRef = useRef(0)
   const genId = () => `${Date.now()}-${idRef.current++}`
@@ -150,8 +153,20 @@ export function WorkspaceLayout({
   }, [chatItems])
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chatItems.length])
+    const el = viewportRef.current
+    if (!el) return
+    const onScroll = () => {
+      const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+      stickRef.current = near
+      setShowJump(!near)
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => {
+    if (stickRef.current) bottomRef.current?.scrollIntoView({ behavior: 'auto' })
+  }, [chatItems])
 
   async function handleSend(message: string) {
     setItems((previous) => [
@@ -256,7 +271,7 @@ export function WorkspaceLayout({
               <HugeiconsIcon icon={PanelLeftIcon} size={16} />
             </button>
           ) : null}
-          <ScrollArea className="min-h-0 flex-1 chat-scroll">
+          <ScrollArea className="min-h-0 flex-1 chat-scroll" viewportRef={viewportRef}>
             <ActivityFeed
               items={chatItems}
               showThinking={isThinking}
@@ -266,6 +281,19 @@ export function WorkspaceLayout({
             />
             <div ref={bottomRef} />
           </ScrollArea>
+          {showJump ? (
+            <button
+              type="button"
+              onClick={() => {
+                stickRef.current = true
+                setShowJump(false)
+                bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+              }}
+              className="absolute bottom-24 left-1/2 z-10 -translate-x-1/2 rounded-full border bg-background px-3 py-1 text-[13px] shadow-md hover:bg-muted"
+            >
+              Jump to latest ↓
+            </button>
+          ) : null}
           {waitingOnUser || status === 'DONE' ? null : (
             <div className="flex shrink-0 items-center">
               <div className="mx-auto flex w-full max-w-3xl items-center gap-2 px-4 pb-1">

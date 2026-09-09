@@ -9,7 +9,7 @@ import {
   convertAgentMessage,
   convertFinishReason,
   convertToolDefinition,
-  extractToolCalls,
+  parseToolCallArguments,
 } from './mapping.ts'
 
 export class OpenAIProvider implements LLMProvider {
@@ -42,32 +42,63 @@ export class OpenAIProvider implements LLMProvider {
     this.contextWindow = resolveContextWindow(this.model)
   }
 
-  async runStep(messages: AgentMessage[], tools: ToolDefinition[]): Promise<ProviderResponse> {
+  async runStep(
+    messages: AgentMessage[],
+    tools: ToolDefinition[],
+    onToken?: (delta: string) => void,
+  ): Promise<ProviderResponse> {
     try {
-      const response = await withRetry(() =>
+      const stream = await withRetry(() =>
         this.client.chat.completions.create({
           model: this.model,
           messages: messages.map(convertAgentMessage),
           tools: tools.length > 0 ? tools.map(convertToolDefinition) : undefined,
+          stream: true,
+          stream_options: { include_usage: true },
         }),
       )
 
-      const choice = response.choices[0]
-      if (!choice) {
-        throw new Error('[agent-core] OpenAI returned no choices')
+      let text = ''
+      let finishReason: string | null = null
+      let usage: ProviderResponse['usage']
+      const toolAcc = new Map<number, { id: string; name: string; args: string }>()
+
+      for await (const chunk of stream) {
+        if (chunk.usage) {
+          usage = {
+            inputTokens: chunk.usage.prompt_tokens,
+            outputTokens: chunk.usage.completion_tokens,
+          }
+        }
+        const choice = chunk.choices[0]
+        if (!choice) continue
+        if (choice.finish_reason) finishReason = choice.finish_reason
+        const delta = choice.delta
+        if (delta?.content) {
+          text += delta.content
+          onToken?.(delta.content)
+        }
+        for (const tc of delta?.tool_calls ?? []) {
+          const prev = toolAcc.get(tc.index) ?? { id: '', name: '', args: '' }
+          if (tc.id) prev.id = tc.id
+          if (tc.function?.name) prev.name = tc.function.name
+          if (tc.function?.arguments) prev.args += tc.function.arguments
+          toolAcc.set(tc.index, prev)
+        }
       }
 
-      const message = choice.message
+      const toolCalls = [...toolAcc.values()]
+        .filter((tc) => tc.id && tc.name)
+        .map((tc) => ({
+          id: tc.id,
+          name: tc.name,
+          input: parseToolCallArguments(tc.args),
+        }))
       return {
-        text: message.content ?? undefined,
-        toolCalls: extractToolCalls(message),
-        stopReason: convertFinishReason(choice.finish_reason),
-        usage: response.usage
-          ? {
-              inputTokens: response.usage.prompt_tokens,
-              outputTokens: response.usage.completion_tokens,
-            }
-          : undefined,
+        text: text || undefined,
+        toolCalls,
+        stopReason: convertFinishReason(finishReason),
+        usage,
       }
     } catch (err) {
       throw toProviderError(err)

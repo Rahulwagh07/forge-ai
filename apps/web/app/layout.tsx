@@ -44,7 +44,7 @@ export default async function RootLayout({
           .findMany({
             where: { userId },
             orderBy: { createdAt: 'desc' },
-            take: 10,
+            take: 30,
             select: {
               id: true,
               prompt: true,

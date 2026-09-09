@@ -63,6 +63,7 @@ export type SessionEvent =
       }
       stepNumber: number
     }
+  | { type: 'step_delta'; stepNumber: number; delta: string }
   | {
       type: 'tool_result'
       result: {

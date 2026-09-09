@@ -8,6 +8,7 @@ import type {
   SessionEvent,
   SessionStatus,
   TerminalChunk,
+  ToolCallData,
 } from '@/lib/types'
 import { cleanPrTitle } from '@/lib/session-chat'
 import { parsePullRequestUrl } from '@/lib/pull-request'
@@ -33,6 +34,15 @@ export function useSessionStream(
 ): void {
   useEffect(() => {
     const es = new EventSource(sessionStreamUrl(sessionId))
+    let stream: { n: number; id: string } | null = null
+    const toToolItem = (call: ToolCallData): ChatItem => ({
+      id: `sse-${handlers.genId()}-${call.id}`,
+      role: 'tool' as const,
+      kind: 'tool_call' as const,
+      toolCallId: call.id,
+      toolName: call.name,
+      toolInput: call.input,
+    })
     es.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data) as SessionEvent
@@ -71,10 +81,61 @@ export function useSessionStream(
             }
             return
           }
+          case 'step_delta': {
+            if (!data.delta) return
+            handlers.setIsThinking(true)
+            const n = data.stepNumber ?? 0
+            if (!stream || stream.n !== n) {
+              const id = `sse-${handlers.genId()}-stream-${n}`
+              stream = { n, id }
+              const text = data.delta
+              handlers.setItems((previous) => [
+                ...previous,
+                {
+                  id,
+                  role: 'assistant' as const,
+                  kind: 'thought' as const,
+                  isThinking: false,
+                  stepNumber: n,
+                  createdAt: new Date().toISOString(),
+                  text,
+                },
+              ])
+            } else {
+              const delta = data.delta
+              const id = stream.id
+              handlers.setItems((previous) =>
+                previous.map((item) =>
+                  item.id === id ? { ...item, text: `${item.text ?? ''}${delta}` } : item,
+                ),
+              )
+            }
+            return
+          }
           case 'step': {
             handlers.setIsThinking(true)
             const step = data.step
             if (!step) return
+            if (stream && stream.n === data.stepNumber) {
+              const provisional = stream.id
+              stream = null
+              const finalText = step.text ?? ''
+              const toolCalls = step.toolCalls ?? []
+              handlers.setItems((previous) => [
+                ...previous.map((item) =>
+                  item.id === provisional
+                    ? {
+                        ...item,
+                        text: finalText || item.text,
+                        isThinking: false,
+                        durationMs: step.durationMs,
+                      }
+                    : item,
+                ),
+                ...toolCalls.map(toToolItem),
+              ])
+              return
+            }
             handlers.setItems((previous) => [
               ...previous,
               ...(step.text
@@ -83,20 +144,14 @@ export function useSessionStream(
                       id: `sse-${handlers.genId()}-thought`,
                       role: 'assistant' as const,
                       kind: 'thought' as const,
-                      isThinking: Boolean(step.toolCalls?.length),
+                      isThinking: false,
                       durationMs: step.durationMs,
+                      createdAt: new Date().toISOString(),
                       text: step.text,
                     },
                   ]
                 : []),
-              ...(step.toolCalls ?? []).map((call) => ({
-                id: `sse-${handlers.genId()}-${call.id}`,
-                role: 'tool' as const,
-                kind: 'tool_call' as const,
-                toolCallId: call.id,
-                toolName: call.name,
-                toolInput: call.input,
-              })),
+              ...(step.toolCalls ?? []).map(toToolItem),
             ])
             return
           }
