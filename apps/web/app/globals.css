@@ -235,9 +235,9 @@ a {
   --info: #38bdf1;
   --info-hover: #7dd3fc;
   --merged: #c084fc;
-  --code-bg: #0a0a0a;
-  --code-fg: #e5e5e5;
-  --code-muted: #737373;
+  --code-bg: oklch(0.97 0 0);
+  --code-fg: oklch(0.205 0 0);
+  --code-muted: oklch(0.556 0 0);
   --terminal: rgb(255 255 255 / 0.85);
   --terminal-dim: rgb(255 255 255 / 0.4);
   --terminal-faint: rgb(255 255 255 / 0.35);
@@ -277,6 +277,9 @@ a {
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
   --chat-input: #1f1f1f;
+  --code-bg: oklch(0.269 0 0);
+  --code-fg: oklch(0.985 0 0);
+  --code-muted: oklch(0.708 0 0);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
