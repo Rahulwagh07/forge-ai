@@ -14,13 +14,16 @@ import {
   requeueForSteering,
   finishWithPr,
 } from './finalize.ts'
+import { finalizeStopped, startStopPolling } from './stop.ts'
 
 const HEARTBEAT_INTERVAL_MS = 30_000
 
-export async function runSession(sessionId: string): Promise<void> {
+export async function runSession(sessionId: string, stopWatermark = 0): Promise<void> {
   let sandbox: SandboxHandle | undefined
   let managedSandbox: ManagedSandbox | undefined
   let heartbeat: ReturnType<typeof setInterval> | undefined
+  let stopPoll: (() => void) | undefined
+  const controller = new AbortController()
 
   log.info('starting session', { sessionId })
 
@@ -43,6 +46,7 @@ export async function runSession(sessionId: string): Promise<void> {
           }),
         )
     }, HEARTBEAT_INTERVAL_MS)
+    stopPoll = startStopPolling(sessionId, controller, stopWatermark)
 
     const repoRef = parseRepoRef(session.repo.fullName)
     const config = loadAppConfigFromEnv()
@@ -92,6 +96,18 @@ export async function runSession(sessionId: string): Promise<void> {
       branch: branchName,
     })
 
+    if (controller.signal.aborted) {
+      await finalizeStopped({
+        sessionId,
+        isAsk,
+        sandbox,
+        managedSandbox,
+        branchName,
+        authUrl: cloneUrl,
+      })
+      return
+    }
+
     log.info('running agent loop', { sessionId })
     const { result: loopResult, commitRequested } = await runAgentLoopForSession({
       sessionId,
@@ -101,9 +117,21 @@ export async function runSession(sessionId: string): Promise<void> {
       sandbox,
       managedSandbox,
       authUrl: cloneUrl,
+      signal: controller.signal,
     })
 
     log.info('agent loop completed', { sessionId, stoppedBy: loopResult.stoppedBy })
+    if (loopResult.stoppedBy === 'aborted') {
+      await finalizeStopped({
+        sessionId,
+        isAsk,
+        sandbox,
+        managedSandbox,
+        branchName,
+        authUrl: cloneUrl,
+      })
+      return
+    }
     if (isAsk) {
       if (!(await settleSession(sessionId, 'AWAITING_INPUT', null))) return
       await publishEvent(sessionId, { type: 'status', status: 'AWAITING_INPUT' })
@@ -189,6 +217,7 @@ export async function runSession(sessionId: string): Promise<void> {
     throw error
   } finally {
     if (heartbeat) clearInterval(heartbeat)
+    stopPoll?.()
     clearSessionToken(sessionId)
   }
 }

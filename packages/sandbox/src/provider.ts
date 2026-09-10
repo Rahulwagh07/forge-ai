@@ -14,6 +14,7 @@ export interface RunCommandOptions {
   env?: Record<string, string>
   timeoutMs?: number
   onOutput?: (chunk: OutputChunk) => void
+  signal?: AbortSignal
 }
 
 export interface CreateSandboxOptions {

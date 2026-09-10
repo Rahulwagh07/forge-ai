@@ -41,6 +41,7 @@ export interface LLMProvider {
     messages: AgentMessage[],
     tools: ToolDefinition[],
     onToken?: (delta: string) => void,
+    signal?: AbortSignal,
   ): Promise<ProviderResponse>
 }
 

@@ -10,17 +10,20 @@ const COMPOSER_MAX_HEIGHT = 200
 export function Composer({
   status,
   onSend,
+  onStop,
   placeholder,
   disabled: disabledProp,
   allowCompleted,
 }: {
   status?: SessionStatus
   onSend: (msg: string) => Promise<void>
+  onStop?: () => Promise<void>
   placeholder?: string
   disabled?: boolean
   allowCompleted?: boolean
 }) {
   const [value, setValue] = useState('')
+  const [stopping, setStopping] = useState(false)
   const [dismissed, setDismissed] = useState(false)
   const [activeIdx, setActiveIdx] = useState(0)
   const taRef = useRef<HTMLTextAreaElement>(null)
@@ -50,6 +53,7 @@ export function Composer({
       (allowCompleted && status === 'DONE')
     : true
   const disabled = disabledProp ?? (!canSteer || !value.trim())
+  const showStop = Boolean(onStop) && (status === 'RUNNING' || status === 'QUEUED')
   const ph =
     placeholder ??
     (canSteer
@@ -64,6 +68,16 @@ export function Composer({
     if (disabledProp !== undefined && disabled) return
     setValue('')
     await onSend(msg)
+  }
+
+  async function handleStop() {
+    if (!onStop || stopping) return
+    setStopping(true)
+    try {
+      await onStop()
+    } finally {
+      setStopping(false)
+    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -129,12 +143,21 @@ export function Composer({
       />
       <div className="mt-2 flex items-center justify-end gap-2">
         <button
-          onClick={handleSend}
-          disabled={disabled}
-          className={`flex h-7 w-7 items-center justify-center rounded-md ${!disabled ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'bg-muted text-muted-foreground'}`}
-          aria-label="Send"
+          type="button"
+          onClick={showStop ? handleStop : handleSend}
+          disabled={showStop ? stopping : disabled}
+          className={`flex h-7 w-7 items-center justify-center rounded-md ${
+            (showStop ? !stopping : !disabled)
+              ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+              : 'bg-muted text-muted-foreground'
+          }`}
+          aria-label={showStop ? 'Stop' : 'Send'}
         >
-          <HugeiconsIcon icon={ArrowUp02Icon} size={16} />
+          {showStop ? (
+            <span aria-hidden="true" className="h-3 w-3 rounded-[3px] bg-current" />
+          ) : (
+            <HugeiconsIcon icon={ArrowUp02Icon} size={16} />
+          )}
         </button>
       </div>
     </div>

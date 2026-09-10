@@ -195,8 +195,14 @@ class DockerSandboxHandle implements SandboxHandle {
     // exec inherit the container env
     const envVars = opts.env ? Object.entries(opts.env).map(([k, v]) => `${k}=${v}`) : undefined
 
+    // Write this wrapper's pid to a file so an abort can kill it: `timeout`
+    // forwards the signal to the command it manages
+    const execId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+    const pidFile = `/tmp/forge-exec-${execId}.pid`
+    const wrapped = `echo $$ > ${shellQuote(pidFile)}; exec timeout ${timeoutSecs}s sh -c ${shellQuote(cmd)}`
+
     const exec = await this.container.exec({
-      Cmd: ['timeout', `${timeoutSecs}s`, 'sh', '-c', cmd],
+      Cmd: ['sh', '-c', wrapped],
       AttachStdout: true,
       AttachStderr: true,
       WorkingDir: opts.cwd ?? REPO_DIR,
@@ -204,6 +210,10 @@ class DockerSandboxHandle implements SandboxHandle {
     })
 
     const stream = await exec.start({ hijack: true, stdin: false })
+
+    const onAbort = () => void this.killByPidFile(pidFile)
+    if (opts.signal?.aborted) onAbort()
+    else opts.signal?.addEventListener('abort', onAbort, { once: true })
 
     // Writable that accumulates one output stream and forwards chunks live
     const outputSink = (streamName: OutputChunk['stream'], chunks: Buffer[]) =>
@@ -223,16 +233,40 @@ class DockerSandboxHandle implements SandboxHandle {
       outputSink('stderr', stderrChunks),
     )
 
-    await new Promise<void>((resolve, reject) => {
-      stream.on('error', reject)
-      stream.on('end', () => resolve())
-    })
+    try {
+      await new Promise<void>((resolve, reject) => {
+        stream.on('error', reject)
+        stream.on('end', () => resolve())
+      })
 
-    const execState = await exec.inspect()
-    return {
-      stdout: Buffer.concat(stdoutChunks).toString('utf8'),
-      stderr: Buffer.concat(stderrChunks).toString('utf8'),
-      exitCode: execState.ExitCode ?? -1,
+      const execState = await exec.inspect()
+      return {
+        stdout: Buffer.concat(stdoutChunks).toString('utf8'),
+        stderr: Buffer.concat(stderrChunks).toString('utf8'),
+        exitCode: execState.ExitCode ?? -1,
+      }
+    } finally {
+      opts.signal?.removeEventListener('abort', onAbort)
+    }
+  }
+
+  // Docker can not signal an exec from outside, so a second exec kills the pid from inside
+  private async killByPidFile(pidFile: string): Promise<void> {
+    try {
+      const kill = await this.container.exec({
+        Cmd: [
+          'sh',
+          '-c',
+          `pid=$(cat ${shellQuote(pidFile)} 2>/dev/null); [ -n "$pid" ] && kill -TERM "$pid" 2>/dev/null; rm -f ${shellQuote(pidFile)}; true`,
+        ],
+      })
+      const stream = await kill.start({})
+      await new Promise<void>((resolve) => {
+        stream.on('end', () => resolve())
+        stream.on('error', () => resolve())
+      })
+    } catch {
+      // best effort
     }
   }
 

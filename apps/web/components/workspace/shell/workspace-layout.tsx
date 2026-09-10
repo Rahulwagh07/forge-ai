@@ -10,7 +10,7 @@ import { AgentDock } from '@/components/workspace/panels/agent-dock'
 import { Composer } from '@/components/workspace/chat/composer'
 import { initialChatItems, toTerminalEntries, withToolResults } from '@/lib/session-chat'
 import { useSessionStream } from '@/hooks/use-session-stream'
-import { sendSteering, wakeSession } from '@/lib/api'
+import { sendSteering, stopSession, wakeSession } from '@/lib/api'
 import { parsePullRequestUrl, type PrState } from '@/lib/pull-request'
 import {
   DOCK_WIDTH_DEFAULT,
@@ -194,6 +194,12 @@ export function WorkspaceLayout({
     }
   }
 
+  async function handleStop() {
+    setStatus('AWAITING_INPUT')
+    setIsThinking(false)
+    await stopSession(sessionId).catch(() => {})
+  }
+
   async function handleWake() {
     await wakeSession(sessionId)
     setStatus('QUEUED')
@@ -218,6 +224,7 @@ export function WorkspaceLayout({
             <Composer
               status={status}
               onSend={handleSend}
+              onStop={handleStop}
               allowCompleted
               placeholder="Ask a question"
             />
@@ -267,7 +274,7 @@ export function WorkspaceLayout({
           ) : null}
           <div className="shrink-0 pb-3">
             <div className="mx-auto w-full max-w-3xl px-4">
-              <Composer status={status} onSend={handleSend} allowCompleted />
+              <Composer status={status} onSend={handleSend} onStop={handleStop} allowCompleted />
             </div>
           </div>
         </div>

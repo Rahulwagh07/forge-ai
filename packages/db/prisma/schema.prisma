@@ -39,6 +39,7 @@ enum StepType {
   DIFF       // file change, captured at edit time
   CHECKPOINT // automatic WIP commit pushed to session branch.. resume marker
   STEERING   // user follow-up message injected mid-run
+  STOP
 }
 
 model User {

@@ -8,23 +8,6 @@ const POLL_INTERVAL_MS = 1000
 const RECLAIM_INTERVAL_MS = 30_000
 const STALE_SESSION_SECONDS = 120
 
-const CLAIM_NEXT_SQL = `UPDATE "Session" s
-SET "status" = 'RUNNING', "lastActiveAt" = now()
-WHERE s."id" = (
-  SELECT "id" FROM "Session"
-  WHERE "status" = 'QUEUED'
-  ORDER BY "createdAt"
-  LIMIT 1
-  FOR UPDATE SKIP LOCKED
-)
-RETURNING s."id"`
-
-const RECLAIM_STALE_SQL = `UPDATE "Session" s
-SET "status" = 'QUEUED', "lastActiveAt" = now()
-WHERE s."status" = 'RUNNING'
-  AND s."lastActiveAt" < now() - ($1 || ' seconds')::interval
-RETURNING s."id"`
-
 export class Consumer {
   private readonly name: string
   private running = false
@@ -45,10 +28,12 @@ export class Consumer {
     // session, even across processes
     const reclaimInterval = setInterval(async () => {
       try {
-        const rows = await prisma.$queryRawUnsafe<{ id: string }[]>(
-          RECLAIM_STALE_SQL,
-          String(STALE_SESSION_SECONDS),
-        )
+        const rows = await prisma.$queryRaw<{ id: string }[]>`
+          UPDATE "Session" s
+          SET "status" = 'QUEUED', "lastActiveAt" = now()
+          WHERE s."status" = 'RUNNING'
+            AND s."lastActiveAt" < now() - (${String(STALE_SESSION_SECONDS)} || ' seconds')::interval
+          RETURNING s."id"`
         for (const row of rows) {
           log.info('reclaimed stale session', { sessionId: row.id })
         }
@@ -65,7 +50,21 @@ export class Consumer {
         continue
       }
       try {
-        const rows = await prisma.$queryRawUnsafe<{ id: string }[]>(CLAIM_NEXT_SQL)
+        // watermark = max step number at claim time, computed atomically with the
+        // RUNNING transition so a stop requested right after claim can't be
+        // mistaken for one left over from a previous run.
+        const rows = await prisma.$queryRaw<{ id: string; watermark: number }[]>`
+          UPDATE "Session" s
+          SET "status" = 'RUNNING', "lastActiveAt" = now()
+          WHERE s."id" = (
+            SELECT "id" FROM "Session"
+            WHERE "status" = 'QUEUED'
+            ORDER BY "createdAt"
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
+          )
+          RETURNING s."id",
+            (SELECT COALESCE(MAX("stepNumber"), 0) FROM "SessionStep" st WHERE st."sessionId" = s."id") AS "watermark"`
         const sessionId = rows[0]?.id
         if (!sessionId) {
           await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
@@ -73,7 +72,7 @@ export class Consumer {
         }
         log.info('claimed session', { sessionId })
         this.activeSessions.add(sessionId)
-        void this.process(sessionId)
+        void this.process(sessionId, rows[0]?.watermark ?? 0)
       } catch (err) {
         log.error('error claiming session', {
           error: err instanceof Error ? err.message : String(err),
@@ -85,9 +84,9 @@ export class Consumer {
     stopSandboxCleanup()
   }
 
-  private async process(sessionId: string): Promise<void> {
+  private async process(sessionId: string, stopWatermark: number): Promise<void> {
     try {
-      await runSession(sessionId)
+      await runSession(sessionId, stopWatermark)
     } catch (err) {
       log.error('error processing session', {
         sessionId,

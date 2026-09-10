@@ -46,16 +46,20 @@ export class OpenAIProvider implements LLMProvider {
     messages: AgentMessage[],
     tools: ToolDefinition[],
     onToken?: (delta: string) => void,
+    signal?: AbortSignal,
   ): Promise<ProviderResponse> {
     try {
       const stream = await withRetry(() =>
-        this.client.chat.completions.create({
-          model: this.model,
-          messages: messages.map(convertAgentMessage),
-          tools: tools.length > 0 ? tools.map(convertToolDefinition) : undefined,
-          stream: true,
-          stream_options: { include_usage: true },
-        }),
+        this.client.chat.completions.create(
+          {
+            model: this.model,
+            messages: messages.map(convertAgentMessage),
+            tools: tools.length > 0 ? tools.map(convertToolDefinition) : undefined,
+            stream: true,
+            stream_options: { include_usage: true },
+          },
+          signal ? { signal } : undefined,
+        ),
       )
 
       let text = ''
@@ -101,6 +105,7 @@ export class OpenAIProvider implements LLMProvider {
         usage,
       }
     } catch (err) {
+      if (signal?.aborted) throw err
       throw toProviderError(err)
     }
   }

@@ -12,30 +12,33 @@ interface ChangeStats {
   deletions: number
 }
 
-const FINALIZE_SQL = `UPDATE "Session" s
-SET "status" = $2::"SessionStatus", "completedAt" = $3, "lastActiveAt" = now()
-WHERE s."id" = $1
-  AND s."status" = 'RUNNING'
-  AND NOT EXISTS (
-    SELECT 1 FROM "SessionStep" st
-    WHERE st."sessionId" = s."id"
-      AND st."type" = 'STEERING'
-      AND st."consumedAt" IS NULL
-  )
-RETURNING s."id"`
-
 export async function finalizeIfNoSteering(
   sessionId: string,
   status: 'DONE' | 'AWAITING_INPUT',
   completedAt: Date | null,
 ): Promise<boolean> {
-  const rows = await prisma.$queryRawUnsafe<{ id: string }[]>(
-    FINALIZE_SQL,
-    sessionId,
-    status,
-    completedAt,
-  )
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    UPDATE "Session" s
+    SET "status" = ${status}::"SessionStatus", "completedAt" = ${completedAt}, "lastActiveAt" = now()
+    WHERE s."id" = ${sessionId}
+      AND s."status" = 'RUNNING'
+      AND NOT EXISTS (
+        SELECT 1 FROM "SessionStep" st
+        WHERE st."sessionId" = s."id"
+          AND st."type" = 'STEERING'
+          AND st."consumedAt" IS NULL
+      )
+    RETURNING s."id"`
   return rows.length > 0
+}
+
+// pause without requeueing so the run
+// does not immediately restart. Unconsumed steering messages is replayed on next resume
+export async function finalizeStoppedSession(sessionId: string): Promise<void> {
+  await prisma.session.updateMany({
+    where: { id: sessionId, status: 'RUNNING' },
+    data: { status: 'AWAITING_INPUT', lastActiveAt: new Date() },
+  })
 }
 
 export async function requeueForSteering(sessionId: string): Promise<void> {

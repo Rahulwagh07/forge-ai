@@ -55,6 +55,10 @@ export function sendSteering(sessionId: string, message: string): Promise<void> 
   })
 }
 
+export function stopSession(sessionId: string): Promise<void> {
+  return request(`${API.sessions}/${sessionId}/stop`, { method: 'POST' })
+}
+
 export function wakeSession(sessionId: string): Promise<RequeueResult> {
   return request(`${API.sessions}/${sessionId}/resume`, {
     method: 'POST',

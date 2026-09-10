@@ -14,6 +14,7 @@ export interface AgentLoopContext {
   sandbox: SandboxHandle
   managedSandbox: ManagedSandbox
   authUrl: string
+  signal: AbortSignal
 }
 
 export interface AgentLoopOutcome {

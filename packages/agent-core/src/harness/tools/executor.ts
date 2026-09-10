@@ -11,6 +11,7 @@ interface ToolOutcome {
 interface ToolExecutionOptions {
   onOutput?: (chunk: OutputChunk) => void
   readOnly?: boolean
+  signal?: AbortSignal
 }
 
 const WRITE_TOOLS = new Set(['writeFile', 'commitAndOpenPR'])
@@ -84,6 +85,7 @@ async function invokeToolCall(
       const result = await sandbox.runCommand(cmd, {
         timeoutMs,
         onOutput: options.onOutput,
+        signal: options.signal,
       })
       const parts = [
         `exitCode: ${result.exitCode}`,

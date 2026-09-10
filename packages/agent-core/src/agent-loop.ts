@@ -37,7 +37,7 @@ interface LoopToolOutputEvent extends OutputChunk {
 
 export interface LoopResult {
   steps: number
-  stoppedBy: 'finish_session' | 'no_tool_calls' | 'max_steps' | 'timeout'
+  stoppedBy: 'finish_session' | 'no_tool_calls' | 'max_steps' | 'timeout' | 'aborted'
   finalText?: string
   approxTokens?: number
   compactions?: number
@@ -64,6 +64,7 @@ export interface RunLoopOptions {
   initialMessages?: AgentMessage[]
   onContext?: (snapshot: ContextSnapshot) => void
   compaction?: CompactionOptions
+  signal?: AbortSignal
 }
 
 async function executeStepTools(args: {
@@ -74,13 +75,16 @@ async function executeStepTools(args: {
   messages: AgentMessage[]
   onToolOutput?: RunLoopOptions['onToolOutput']
   onToolResult?: RunLoopOptions['onToolResult']
+  signal?: AbortSignal
 }): Promise<{ finished: boolean; finalText?: string }> {
   let finished = false
   let finalText: string | undefined
   for (const call of args.calls) {
+    if (args.signal?.aborted) break
     const toolStartedAt = Date.now()
     const outcome = await executeToolCall(args.sandbox, call, {
       readOnly: args.readOnly,
+      signal: args.signal,
       onOutput: (chunk) => {
         args.onToolOutput?.({
           ...chunk,
@@ -138,6 +142,10 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
   }
 
   while (stepNumber < maxSteps) {
+    if (opts.signal?.aborted) {
+      stoppedBy = 'aborted'
+      break
+    }
     if (deadlineMs !== undefined && Date.now() > deadlineMs) {
       stoppedBy = 'timeout'
       break
@@ -166,15 +174,19 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
     const emitToken = (delta: string) => opts.onToken?.({ stepNumber, delta })
     let response: ProviderResponse
     try {
-      response = await provider.runStep(messages, TOOL_DEFINITIONS, emitToken)
+      response = await provider.runStep(messages, TOOL_DEFINITIONS, emitToken, opts.signal)
     } catch (err) {
+      if (opts.signal?.aborted) {
+        stoppedBy = 'aborted'
+        break
+      }
       // Overflow recovery: one retry, then fail
       const recovered =
         compaction &&
         isContextOverflowError(err) &&
         (await tryCompactLoop(messages, compaction, compactionState, stepNumber, true))
       if (!recovered) throw err
-      response = await provider.runStep(messages, TOOL_DEFINITIONS, emitToken)
+      response = await provider.runStep(messages, TOOL_DEFINITIONS, emitToken, opts.signal)
     }
     if (typeof response.usage?.inputTokens === 'number') {
       lastPromptTokens = response.usage.inputTokens
@@ -220,10 +232,15 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
       messages,
       onToolOutput: opts.onToolOutput,
       onToolResult: opts.onToolResult,
+      signal: opts.signal,
     })
     if (finished) {
       stoppedBy = 'finish_session'
       finalText = toolFinalText
+    }
+    if (opts.signal?.aborted) {
+      stoppedBy = 'aborted'
+      break
     }
     if (compaction) {
       await tryCompactLoop(

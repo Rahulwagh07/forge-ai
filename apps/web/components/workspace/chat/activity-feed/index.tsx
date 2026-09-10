@@ -114,9 +114,6 @@ export function ActivityFeed({
           key={item.id}
           className="ml-8 mt-2 flex items-center gap-2 text-[13px] leading-[18px] text-muted-foreground"
         >
-          {failed ? null : (
-            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60" />
-          )}
           <span className={failed ? 'text-danger' : undefined}>{text}</span>
         </div>,
       )

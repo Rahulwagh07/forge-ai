@@ -104,6 +104,7 @@ export async function runAgentLoopForSession(ctx: AgentLoopContext): Promise<Age
     initialMessages,
     maxSteps,
     maxWallClockMs: wallClockTimeoutMs,
+    signal: ctx.signal,
     onContext: ({ stepNumber }) => {
       latestStepNumber = stepNumber
     },
