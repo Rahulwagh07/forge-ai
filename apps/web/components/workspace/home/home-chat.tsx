@@ -1,9 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { RepoAvatar } from '@/components/workspace/repo-avatar'
-import { repoSlug } from '@/lib/repo'
-import { RepoSelectModal } from '@/components/workspace/home/repo-select-modal'
+import { RepoSelect } from '@/components/workspace/home/repo-select'
 import { BranchSelect } from '@/components/workspace/home/branch-select'
 import { Composer } from '@/components/workspace/chat/composer'
 import { createSession, listBranches, syncRepositories } from '@/lib/api'
@@ -30,7 +28,6 @@ export function HomeChat({
   const router = useRouter()
   const [mode, setMode] = useState<'ask' | 'agent'>('ask')
   const [selectedId, setSelectedId] = useState<string | null>(repos[0]?.id ?? null)
-  const [repoModalOpen, setRepoModalOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [branch, setBranch] = useState<string | null>(null)
@@ -156,16 +153,13 @@ export function HomeChat({
       <div className="mx-auto w-full max-w-3xl">
         <Composer onSend={handleSubmit} placeholder="Ask Forge questions about your code" />
       </div>
-      <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-        <button
-          onClick={() => setRepoModalOpen(true)}
-          className="flex min-w-0 max-w-full items-center gap-1.5 font-medium text-primary group"
-        >
-          {selected ? <RepoAvatar fullName={selected.fullName} size={18} /> : null}
-          <span className="truncate group-hover:underline">
-            {selected ? repoSlug(selected.fullName) : 'Select repository'}
-          </span>
-        </button>
+      <div className="mx-auto mt-3 flex w-full max-w-3xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm">
+        <RepoSelect
+          repos={repos}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          onAddNew={() => setInfoOpen(true)}
+        />
         <BranchSelect
           value={activeBranch}
           defaultBranch={selected?.defaultBranch ?? DEFAULT_BRANCH_LABEL}
@@ -174,17 +168,6 @@ export function HomeChat({
           onChange={setBranch}
         />
       </div>
-      <RepoSelectModal
-        open={repoModalOpen}
-        onOpenChange={setRepoModalOpen}
-        repos={repos}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-        onAddNew={() => {
-          setRepoModalOpen(false)
-          setInfoOpen(true)
-        }}
-      />
       <Dialog open={infoOpen} onOpenChange={setInfoOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>

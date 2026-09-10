@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { GitBranchIcon, Tick02Icon } from '@hugeicons/core-free-icons'
+import { ArrowDown01Icon, GitBranchIcon, Tick02Icon } from '@hugeicons/core-free-icons'
 import { Select } from '@base-ui/react/select'
 import { Input } from '@/components/ui/input'
 
@@ -34,15 +34,18 @@ export function BranchSelect({
       disabled={disabled}
     >
       <Select.Trigger
-        className="flex min-w-0 max-w-[12rem] cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none disabled:cursor-default disabled:opacity-70"
+        className="flex min-w-0 max-w-[12rem] cursor-pointer items-center gap-1.5 rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none disabled:cursor-default disabled:opacity-70"
         aria-label="Base branch"
       >
-        <HugeiconsIcon icon={GitBranchIcon} size={12} className="shrink-0" />
+        <HugeiconsIcon icon={GitBranchIcon} size={13} className="shrink-0" />
         <span className="truncate">{value}</span>
+        {disabled ? null : (
+          <HugeiconsIcon icon={ArrowDown01Icon} size={12} className="shrink-0 opacity-70" />
+        )}
       </Select.Trigger>
       <Select.Portal>
         <Select.Positioner sideOffset={8} align="start" alignItemWithTrigger={false}>
-          <Select.Popup className="flex max-h-64 w-56 flex-col overflow-hidden rounded-md bg-popover p-1 text-sm text-popover-foreground shadow-md outline-none">
+          <Select.Popup className="flex max-h-64 w-56 flex-col overflow-hidden rounded-lg bg-card p-1 text-sm text-card-foreground shadow-lg outline-none">
             {options.length > 3 ? (
               <div className="shrink-0 p-1" onKeyDown={(event) => event.stopPropagation()}>
                 <Input

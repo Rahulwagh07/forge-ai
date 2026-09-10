@@ -107,9 +107,9 @@ function SidebarBody({
                         <span className="flex w-full items-start gap-2">
                           {s.repoFullName ? (
                             s.status === 'RUNNING' ? (
-                              <RunningRepoAvatar fullName={s.repoFullName} size={22} />
+                              <RunningRepoAvatar fullName={s.repoFullName} size={18} />
                             ) : (
-                              <RepoAvatar fullName={s.repoFullName} size={22} />
+                              <RepoAvatar fullName={s.repoFullName} size={18} />
                             )
                           ) : null}
                           <span className="min-w-0 flex-1">
