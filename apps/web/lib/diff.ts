@@ -1,19 +1,37 @@
 import parseGitDiff from 'parse-diff'
 import type { DiffFileMeta, DiffFileStatus, DiffTotals } from '@/lib/types'
 
-export { type DiffFileStatus } from '@/lib/types'
+const DIFF_FILE_STATUSES: DiffFileStatus[] = ['created', 'modified', 'deleted', 'renamed']
 
-export const DIFF_FILE_STATUSES: DiffFileStatus[] = ['created', 'modified', 'deleted', 'renamed']
-
-export function normalizeDiffFileStatus(value: string): DiffFileStatus {
+function normalizeDiffFileStatus(value: string): DiffFileStatus {
   return DIFF_FILE_STATUSES.includes(value as DiffFileStatus)
     ? (value as DiffFileStatus)
     : 'modified'
 }
 
+export function diffFileMetaFromRow(row: {
+  path: string
+  status: string
+  previousPath: string | null
+  additions: number
+  deletions: number
+  binary: boolean
+  contentTooLarge: boolean
+}): DiffFileMeta {
+  return {
+    path: row.path,
+    status: normalizeDiffFileStatus(row.status),
+    previousPath: row.previousPath ?? undefined,
+    additions: row.additions,
+    deletions: row.deletions,
+    binary: row.binary,
+    contentTooLarge: row.contentTooLarge,
+  }
+}
+
 const NO_NEWLINE_MARKER = '\\ No newline'
 
-export interface DiffLine {
+interface DiffLine {
   kind: 'context' | 'addition' | 'deletion'
   text: string
   oldLine?: number
@@ -25,14 +43,14 @@ export interface DiffHunk {
   lines: DiffLine[]
 }
 
-export interface HunkSpan {
+interface HunkSpan {
   oldStart: number
   oldLines: number
   newStart: number
   newLines: number
 }
 
-export function parseHunkHeader(header: string): HunkSpan | null {
+function parseHunkHeader(header: string): HunkSpan | null {
   const match = header.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/)
   if (!match) return null
   return {
@@ -141,13 +159,13 @@ export const DIFF_STATUS_LABEL: Record<DiffFileStatus, string> = {
   renamed: 'Renamed',
 }
 
-export function linePrefix(line: DiffLine): string {
+function linePrefix(line: DiffLine): string {
   if (line.kind === 'addition') return '+'
   if (line.kind === 'deletion') return '-'
   return ' '
 }
 
-export function buildHunkText(hunk: DiffHunk): string {
+function buildHunkText(hunk: DiffHunk): string {
   return [hunk.header, ...hunk.lines.map((line) => `${linePrefix(line)}${line.text}`)].join('\n')
 }
 

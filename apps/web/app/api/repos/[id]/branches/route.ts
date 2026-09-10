@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from 'db'
 import { appOctokit, loadAppConfigFromEnv } from 'github'
-import { requireUser } from '@/lib/session-resume'
+import { requireUser } from '@/lib/auth-guards'
 import { log } from '@/lib/log'
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -36,7 +36,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     })
     return NextResponse.json({
       defaultBranch: repo.defaultBranch,
-      branches: branches.map((b) => b.name),
+      branches: branches.map((branch) => branch.name),
     })
   } catch (error) {
     log.error('failed to list branches', {

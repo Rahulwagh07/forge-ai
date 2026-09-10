@@ -317,7 +317,7 @@ function DiffViewerSplitLine({
   )
 }
 
-export type DiffViewerProps = VariantProps<typeof diffViewerVariants> & {
+type DiffViewerProps = VariantProps<typeof diffViewerVariants> & {
   patch?: string
   code?: string
   viewMode?: 'split' | 'unified'
@@ -406,6 +406,4 @@ function DiffViewer({
 
 DiffViewer.displayName = 'DiffViewer'
 
-export type { ParsedLine, ParsedFile, SplitLinePair }
-
-export { DiffViewer, DiffViewerFile, DiffViewerStats, parsePatch }
+export { DiffViewer, DiffViewerFile, DiffViewerStats }

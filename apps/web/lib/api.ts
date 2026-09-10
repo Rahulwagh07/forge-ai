@@ -12,8 +12,8 @@ export type SessionSummary = {
 type RequeueResult = { sessionId: string; status: string; queued: boolean }
 
 async function request<T>(url: string, init?: Record<string, unknown>): Promise<T> {
-  const res = await axios(url, init)
-  return res.data as T
+  const response = await axios(url, init)
+  return response.data as T
 }
 
 export function sessionStreamUrl(sessionId: string): string {
@@ -60,14 +60,6 @@ export function wakeSession(sessionId: string): Promise<RequeueResult> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     data: { action: 'wake' },
-  })
-}
-
-export function retrySession(sessionId: string): Promise<RequeueResult> {
-  return request(`${API.sessions}/${sessionId}/resume`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    data: { action: 'retry' },
   })
 }
 

@@ -15,7 +15,7 @@ import { parsePullRequestUrl } from '@/lib/pull-request'
 import { sessionStreamUrl } from '@/lib/api'
 import { ERROR_PREVIEW_LENGTH } from '@/lib/constants'
 
-export interface SessionStreamHandlers {
+interface SessionStreamHandlers {
   setStatus: (status: SessionStatus) => void
   setIsThinking: (thinking: boolean) => void
   setItems: (updater: (previous: ChatItem[]) => ChatItem[]) => void
@@ -73,6 +73,7 @@ export function useSessionStream(
                   role: 'system',
                   kind: 'status',
                   text: error.slice(0, ERROR_PREVIEW_LENGTH),
+                  isError: nextStatus === 'FAILED',
                 },
               ])
             }

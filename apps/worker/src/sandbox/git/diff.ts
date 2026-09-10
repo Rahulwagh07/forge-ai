@@ -2,9 +2,9 @@ import type { SandboxHandle } from 'sandbox'
 import { shellQuote } from 'sandbox'
 import { fetchBaseAndStageUntracked, runInRepo } from './exec.ts'
 
-export type StepFileStatus = 'created' | 'modified' | 'deleted' | 'renamed'
+type StepFileStatus = 'created' | 'modified' | 'deleted' | 'renamed'
 
-export interface SessionDiffFileRecord {
+interface SessionDiffFileRecord {
   path: string
   previousPath?: string
   status: StepFileStatus
@@ -17,20 +17,20 @@ export interface SessionDiffFileRecord {
   contentTooLarge: boolean
 }
 
-export interface SessionDiffTotals {
+interface SessionDiffTotals {
   files: number
   additions: number
   deletions: number
 }
 
-export interface SessionDiffSnapshot {
+interface SessionDiffSnapshot {
   files: SessionDiffFileRecord[]
   totals: SessionDiffTotals
 }
 
-export const MAX_FILE_CONTENT_BYTES = 262144
+const MAX_FILE_CONTENT_BYTES = 262144
 
-export interface FileContentResult {
+interface FileContentResult {
   oldContent: string
   newContent: string
   contentTooLarge: boolean

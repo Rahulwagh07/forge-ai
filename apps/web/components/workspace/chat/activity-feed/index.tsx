@@ -7,7 +7,7 @@ import type { ChatItem, PullRequestInfo } from '@/lib/types'
 import { AGENT_NAME, AgentTurn } from './agent-turn'
 import { PullRequestCard } from './pull-request-card'
 import { ThoughtBlock } from './thought-block'
-import { collectNestedWork } from './nesting'
+import { collectNestedWork, collectToolRun } from './nesting'
 
 export function ActivityFeed({
   items,
@@ -52,15 +52,7 @@ export function ActivityFeed({
     const item = items[index]
     if (!item) continue
     if (item.role === 'tool' && (index === 0 || items[index - 1]?.role !== 'tool')) {
-      const run: ChatItem[] = []
-      for (
-        let cursor = index;
-        cursor < items.length && items[cursor]?.role === 'tool';
-        cursor += 1
-      ) {
-        const tool = items[cursor]
-        if (tool) run.push(tool)
-      }
+      const { run } = collectToolRun(items, index)
       const pr = prByRunStart.get(index)
       nodes.push(
         <div key={item.id} className="mt-2.5">
@@ -116,13 +108,16 @@ export function ActivityFeed({
         )
         continue
       }
+      const failed = Boolean(item.isError)
       nodes.push(
         <div
           key={item.id}
           className="ml-8 mt-2 flex items-center gap-2 text-[13px] leading-[18px] text-muted-foreground"
         >
-          <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60" />
-          <span>{text}</span>
+          {failed ? null : (
+            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60" />
+          )}
+          <span className={failed ? 'text-danger' : undefined}>{text}</span>
         </div>,
       )
       continue

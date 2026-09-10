@@ -14,51 +14,52 @@ export async function syncUserGithubInstallations(userId: string) {
     return null
   }
   const config = loadAppConfigFromEnv()
-  const linked = await prisma.githubInstallation.findMany({
+  const linkedInstallations = await prisma.githubInstallation.findMany({
     where: { userId },
     select: { id: true, installationId: true },
   })
 
-  for (const inst of linked) {
+  for (const installation of linkedInstallations) {
     try {
-      const octokit = appOctokit(config, Number(inst.installationId))
-      const repoRes = await octokit.request('GET /installation/repositories', {})
-      const repos = repoRes.data.repositories as InstallationRepo[]
+      const octokit = appOctokit(config, Number(installation.installationId))
+      const repositoriesResponse = await octokit.request('GET /installation/repositories', {})
+      const repos = repositoriesResponse.data.repositories as InstallationRepo[]
 
-      for (const r of repos) {
+      for (const repo of repos) {
         await prisma.repo.upsert({
-          where: { githubRepoId: BigInt(r.id) },
+          where: { githubRepoId: BigInt(repo.id) },
           update: {
-            fullName: r.full_name,
-            defaultBranch: r.default_branch,
-            installationId: inst.id,
+            fullName: repo.full_name,
+            defaultBranch: repo.default_branch,
+            installationId: installation.id,
           },
           create: {
-            githubRepoId: BigInt(r.id),
-            fullName: r.full_name,
-            defaultBranch: r.default_branch,
-            installationId: inst.id,
+            githubRepoId: BigInt(repo.id),
+            fullName: repo.full_name,
+            defaultBranch: repo.default_branch,
+            installationId: installation.id,
           },
         })
       }
 
-      const ids = new Set(repos.map((r) => BigInt(r.id)))
-      const existing = await prisma.repo.findMany({ where: { installationId: inst.id } })
-      for (const er of existing) {
-        if (!ids.has(er.githubRepoId)) {
-          const hasSessions = await prisma.session.count({ where: { repoId: er.id } })
-          if (hasSessions === 0) {
-            await prisma.repo.delete({ where: { id: er.id } }).catch(() => {})
-          }
+      const activeRepoIds = new Set(repos.map((repo) => BigInt(repo.id)))
+      const existingRepos = await prisma.repo.findMany({
+        where: { installationId: installation.id },
+      })
+      for (const existingRepo of existingRepos) {
+        if (activeRepoIds.has(existingRepo.githubRepoId)) continue
+        const sessionCount = await prisma.session.count({ where: { repoId: existingRepo.id } })
+        if (sessionCount === 0) {
+          await prisma.repo.delete({ where: { id: existingRepo.id } }).catch(() => {})
         }
       }
     } catch (err) {
       log.error('sync installation failed', {
-        installationId: inst.installationId,
+        installationId: installation.installationId,
         error: err instanceof Error ? err.message : String(err),
       })
     }
   }
 
-  return linked[0] ?? null
+  return linkedInstallations[0] ?? null
 }

@@ -4,7 +4,7 @@ import { env } from '../env.ts'
 import type { SandboxHandle, SandboxProvider } from 'sandbox'
 import { log } from '../runtime/log.ts'
 
-export const sandboxProvider: SandboxProvider = getSandboxProvider()
+const sandboxProvider: SandboxProvider = getSandboxProvider()
 
 export type ManagedSandbox = {
   sandbox: SandboxHandle
@@ -38,7 +38,7 @@ export function startSandboxCleanup(): () => void {
 
 async function destroyIdleSandboxes(): Promise<void> {
   const now = Date.now()
-  const idleTimeoutMs = getSandboxIdleTimeoutMs()
+  const idleTimeoutMs = env.SANDBOX_IDLE_TIMEOUT_MS
 
   for (const [sessionId, managed] of managedSandboxes) {
     if (now - managed.lastUsedAt < idleTimeoutMs) continue
@@ -114,7 +114,7 @@ async function markSessionPaused(sessionId: string): Promise<void> {
   })
 }
 
-export interface AcquireSandboxOptions {
+interface AcquireSandboxOptions {
   sessionId: string
   isAsk: boolean
   isResume: boolean
@@ -171,8 +171,4 @@ function sandboxGitEnv(gitToken: string): Record<string, string> {
     GIT_COMMITTER_EMAIL:
       env.GIT_COMMITTER_EMAIL ?? env.SANDBOX_GIT_EMAIL ?? 'forge-agent@users.noreply.github.com',
   }
-}
-
-function getSandboxIdleTimeoutMs(): number {
-  return env.SANDBOX_IDLE_TIMEOUT_MS
 }

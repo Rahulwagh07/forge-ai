@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from 'db'
-import { requireUser } from '@/lib/session-resume'
+import { requireUser } from '@/lib/auth-guards'
 import { isValidBranchName } from '@/lib/utils'
 import { log } from '@/lib/log'
 

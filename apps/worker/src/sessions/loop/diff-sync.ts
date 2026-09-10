@@ -36,7 +36,7 @@ export async function syncDiffAfterTool(
     }),
     ...changed.map((file) => {
       const content = contents.get(file.path)
-      const data = {
+      const diffFileFields = {
         status: file.status,
         previousPath: file.previousPath,
         additions: file.additions,
@@ -49,8 +49,8 @@ export async function syncDiffAfterTool(
       }
       return prisma.sessionDiffFile.upsert({
         where: { sessionId_path: { sessionId, path: file.path } },
-        create: { sessionId, path: file.path, ...data },
-        update: data,
+        create: { sessionId, path: file.path, ...diffFileFields },
+        update: diffFileFields,
       })
     }),
   ])

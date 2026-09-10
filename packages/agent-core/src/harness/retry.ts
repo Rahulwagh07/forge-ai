@@ -26,7 +26,7 @@ function readCode(err: unknown): string | undefined {
   return typeof code === 'string' ? code : undefined
 }
 
-export function isRetryableProviderError(err: unknown): boolean {
+function isRetryableProviderError(err: unknown): boolean {
   if (err instanceof ProviderError) return err.retryable
   const status = readStatus(err)
   if (status !== undefined) return status === 429 || (status >= 500 && status < 600)

@@ -1,9 +1,9 @@
-export interface ChatCommand {
+interface ChatCommand {
   name: string
   description: string
 }
 
-export const CHAT_COMMANDS: ChatCommand[] = [
+const CHAT_COMMANDS: ChatCommand[] = [
   { name: 'compact', description: 'Summarize context and keep working' },
 ]
 

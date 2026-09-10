@@ -14,10 +14,6 @@ export function timeAgo(createdAt: string): string {
   return `${Math.floor(h / 24)} days ago`
 }
 
-export function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
-
 export function formatFullDate(iso?: string): string | undefined {
   if (!iso) return undefined
   const d = new Date(iso)

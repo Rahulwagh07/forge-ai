@@ -3,12 +3,12 @@ import { assertSafePath, blockedCommandReason } from '../guards.ts'
 import type { ToolCall } from '../provider.ts'
 import { MAX_COMMAND_TIMEOUT_MS, MAX_TOOL_OUTPUT_CHARS } from '../../constants.ts'
 
-export interface ToolOutcome {
+interface ToolOutcome {
   output: string
   isError: boolean
 }
 
-export interface ToolExecutionOptions {
+interface ToolExecutionOptions {
   onOutput?: (chunk: OutputChunk) => void
   readOnly?: boolean
 }
@@ -81,14 +81,14 @@ async function invokeToolCall(
         Math.max(requestedTimeoutMs ?? MAX_COMMAND_TIMEOUT_MS, 0),
         MAX_COMMAND_TIMEOUT_MS,
       )
-      const res = await sandbox.runCommand(cmd, {
+      const result = await sandbox.runCommand(cmd, {
         timeoutMs,
         onOutput: options.onOutput,
       })
       const parts = [
-        `exitCode: ${res.exitCode}`,
-        res.stdout && `stdout:\n${truncateToolOutput(res.stdout)}`,
-        res.stderr && `stderr:\n${truncateToolOutput(res.stderr)}`,
+        `exitCode: ${result.exitCode}`,
+        result.stdout && `stdout:\n${truncateToolOutput(result.stdout)}`,
+        result.stderr && `stderr:\n${truncateToolOutput(result.stderr)}`,
       ].filter(Boolean)
       return success(parts.join('\n'))
     }
@@ -111,13 +111,13 @@ async function commitAndOpenPR(sandbox: SandboxHandle, call: ToolCall): Promise<
   if (!commitMessage) return badInput('commitAndOpenPR requires `commitMessage`')
 
   const quoted = commitMessage.replaceAll("'", `'\\''`)
-  const res = await sandbox.runCommand(
+  const result = await sandbox.runCommand(
     `git add -A && git diff --cached --quiet || git commit -m '${quoted}'`,
     {},
   )
-  if (res.exitCode !== 0) {
+  if (result.exitCode !== 0) {
     return {
-      output: truncateToolOutput(`git commit failed:\n${res.stderr}`),
+      output: truncateToolOutput(`git commit failed:\n${result.stderr}`),
       isError: true,
     }
   }

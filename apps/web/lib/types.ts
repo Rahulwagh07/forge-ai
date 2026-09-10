@@ -31,7 +31,7 @@ export type DiffTotals = {
   deletions: number
 }
 
-export type StoredStepContent =
+type StoredStepContent =
   | { message: string }
   | { text?: string; durationMs?: number; toolCalls?: ToolCallData[] }
   | {

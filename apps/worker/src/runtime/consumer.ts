@@ -8,9 +8,6 @@ const POLL_INTERVAL_MS = 1000
 const RECLAIM_INTERVAL_MS = 30_000
 const STALE_SESSION_SECONDS = 120
 
-// Max sessions this worker runs concurrently
-const CONCURRENCY = env.WORKER_CONCURRENCY
-
 const CLAIM_NEXT_SQL = `UPDATE "Session" s
 SET "status" = 'RUNNING', "lastActiveAt" = now()
 WHERE s."id" = (
@@ -63,7 +60,7 @@ export class Consumer {
     }, RECLAIM_INTERVAL_MS)
 
     while (this.running) {
-      if (this.activeSessions.size >= CONCURRENCY) {
+      if (this.activeSessions.size >= env.WORKER_CONCURRENCY) {
         await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
         continue
       }

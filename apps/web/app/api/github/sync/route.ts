@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from 'db'
 import { syncUserGithubInstallations } from '@/lib/github-sync'
-import { requireUser } from '@/lib/session-resume'
+import { requireUser } from '@/lib/auth-guards'
 import { log } from '@/lib/log'
 
 export async function POST() {

@@ -1,6 +1,6 @@
 export type PrState = 'open' | 'closed' | 'merged'
 
-export type PullRequestRef = { repoFullName: string; number: number }
+type PullRequestRef = { repoFullName: string; number: number }
 
 const PR_URL_RE = /github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)/
 

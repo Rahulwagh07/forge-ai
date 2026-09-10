@@ -6,6 +6,7 @@ import { prisma } from 'db'
 import { SyncRepositoriesButton } from '@/components/workspace/home/sync-repositories-button'
 import { syncUserGithubInstallations } from '@/lib/github-sync'
 import { API, GITHUB_INSTALLATIONS_URL } from '@/lib/constants'
+import { log } from '@/lib/log'
 
 export default async function ConnectGithubPage() {
   const session = await getSession()
@@ -21,8 +22,10 @@ export default async function ConnectGithubPage() {
       installationsCount = await prisma.githubInstallation.count({
         where: { userId },
       })
-    } catch (err) {
-      console.error('[connect-github] failed to auto-discover installations on load', err)
+    } catch (error) {
+      log.error('failed to auto-discover installations on load', {
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   } else {
     installationsCount = await prisma.githubInstallation.count({

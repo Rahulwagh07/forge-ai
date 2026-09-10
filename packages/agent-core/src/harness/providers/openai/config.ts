@@ -5,7 +5,7 @@ import {
   OPENROUTER_DEFAULT_MODEL,
 } from '../../../constants.ts'
 
-export interface ApiCredentials {
+interface ApiCredentials {
   apiKey: string
   baseURL?: string
   model: string
@@ -25,7 +25,6 @@ export function resolveApiCredentials(
   if (input.OPENAI_API_KEY) {
     return {
       apiKey: input.OPENAI_API_KEY,
-      // baseURL: input.OPENAI_BASE_URL,
       baseURL: OPENCODE_GO_BASE_URL,
       model: explicitModel ?? input.OPENAI_MODEL ?? OPENCODE_GO_DEFAULT_MODEL,
     }

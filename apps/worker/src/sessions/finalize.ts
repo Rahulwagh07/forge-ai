@@ -6,7 +6,7 @@ import { runInRepo } from '../sandbox/git/index.ts'
 import { shellQuote } from 'sandbox'
 import { log } from '../runtime/log.ts'
 
-export interface ChangeStats {
+interface ChangeStats {
   files: number
   additions: number
   deletions: number
@@ -46,7 +46,7 @@ export async function requeueForSteering(sessionId: string): Promise<void> {
   log.info('requeued session for steering', { sessionId })
 }
 
-async function pushBranch(
+export async function pushAndNotify(
   sandbox: SandboxHandle,
   sessionId: string,
   branchName: string,
@@ -72,19 +72,10 @@ async function pushBranch(
         error: error instanceof Error ? error.message : String(error),
       }),
     )
-}
-
-export async function pushAndNotify(
-  sandbox: SandboxHandle,
-  sessionId: string,
-  branchName: string,
-  authUrl: string,
-): Promise<void> {
-  await pushBranch(sandbox, sessionId, branchName, authUrl)
   await publishEvent(sessionId, { type: 'branch_pushed', branch: branchName })
 }
 
-export function isMissingBaseError(err: unknown): boolean {
+function isMissingBaseError(err: unknown): boolean {
   if (typeof err !== 'object' || err === null) return false
   const record = err as Record<string, unknown>
   if (record.status !== 422) return false
@@ -111,7 +102,7 @@ export function isMissingBaseError(err: unknown): boolean {
       ),
   )
 }
-export function prTitle(prompt: string): string {
+function prTitle(prompt: string): string {
   const normalized = prompt.trim().replace(/\s+/g, ' ')
   return normalized.length > 72 ? `${normalized.slice(0, 69)}...` : normalized
 }

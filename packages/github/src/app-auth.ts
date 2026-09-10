@@ -9,7 +9,7 @@ import { Octokit } from 'octokit'
  * embedded into the git clone URL
  */
 
-export interface GitHubAppConfig {
+interface GitHubAppConfig {
   appId: string
   privateKey: string
 }

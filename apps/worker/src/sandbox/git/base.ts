@@ -2,7 +2,7 @@ import type { SandboxHandle } from 'sandbox'
 import { shellQuote } from 'sandbox'
 import { runInRepo } from './exec.ts'
 
-export type BaseBranchState = 'exists' | 'seeded' | 'missing'
+type BaseBranchState = 'exists' | 'seeded' | 'missing'
 
 export async function ensureBaseBranch(
   sandbox: SandboxHandle,

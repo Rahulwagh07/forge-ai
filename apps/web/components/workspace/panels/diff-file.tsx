@@ -19,8 +19,6 @@ import type { DiffFileContents } from '@/lib/types'
 import { DiffFileBody } from './diff-file-body'
 import type { DiffView } from './view-toggle'
 
-export type { DiffView } from './view-toggle'
-
 export const DiffFile = memo(function DiffFile({
   file,
   view,

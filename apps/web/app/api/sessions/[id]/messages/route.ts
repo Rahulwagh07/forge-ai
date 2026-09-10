@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from 'db'
-import { requireOwnedSession, requireUser } from '@/lib/session-resume'
+import { requireOwnedSession, requireUser } from '@/lib/auth-guards'
 import { log } from '@/lib/log'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

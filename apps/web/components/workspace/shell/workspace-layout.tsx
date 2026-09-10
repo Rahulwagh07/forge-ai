@@ -10,7 +10,7 @@ import { AgentDock } from '@/components/workspace/panels/agent-dock'
 import { Composer } from '@/components/workspace/chat/composer'
 import { initialChatItems, toTerminalEntries, withToolResults } from '@/lib/session-chat'
 import { useSessionStream } from '@/hooks/use-session-stream'
-import { retrySession, sendSteering, wakeSession } from '@/lib/api'
+import { sendSteering, wakeSession } from '@/lib/api'
 import { parsePullRequestUrl, type PrState } from '@/lib/pull-request'
 import {
   DOCK_WIDTH_DEFAULT,
@@ -194,40 +194,11 @@ export function WorkspaceLayout({
     }
   }
 
-  async function handleRetry() {
-    await retrySession(sessionId)
-    setStatus('QUEUED')
-    setStreamReconnect((k) => k + 1)
-  }
-
   async function handleWake() {
     await wakeSession(sessionId)
     setStatus('QUEUED')
     setStreamReconnect((k) => k + 1)
   }
-
-  const statusText =
-    status === 'QUEUED'
-      ? 'Waking up Forge...'
-      : status === 'RUNNING'
-        ? currentAction
-          ? `${currentAction}...`
-          : 'Forge is working...'
-        : status === 'AWAITING_INPUT' || status === 'PAUSED'
-          ? 'Forge is waiting on you — reply above to continue'
-          : status === 'DONE'
-            ? 'Work completed'
-            : status === 'FAILED'
-              ? 'Forge hit an error — tell it how to proceed, or retry'
-              : ''
-  const dotClass =
-    status === 'RUNNING'
-      ? 'animate-pulse bg-success'
-      : status === 'FAILED'
-        ? 'bg-danger'
-        : status === 'DONE'
-          ? 'bg-success'
-          : 'bg-muted-foreground'
 
   if (isAsk) {
     return (
@@ -294,23 +265,6 @@ export function WorkspaceLayout({
               Jump to latest ↓
             </button>
           ) : null}
-          {waitingOnUser || status === 'DONE' ? null : (
-            <div className="flex shrink-0 items-center">
-              <div className="mx-auto flex w-full max-w-3xl items-center gap-2 px-4 pb-1">
-                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotClass}`} />
-                <span className="truncate text-sm text-muted-foreground">{statusText}</span>
-                {status === 'FAILED' ? (
-                  <button
-                    type="button"
-                    onClick={handleRetry}
-                    className="rounded-md bg-secondary px-2.5 py-1 text-sm font-medium text-secondary-foreground hover:bg-secondary/80"
-                  >
-                    Retry session
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          )}
           <div className="shrink-0 pb-3">
             <div className="mx-auto w-full max-w-3xl px-4">
               <Composer status={status} onSend={handleSend} allowCompleted />

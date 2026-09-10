@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { requireOwnedSession, requireUser, requeueSession } from '@/lib/session-resume'
+import { requireOwnedSession, requireUser } from '@/lib/auth-guards'
+import { requeueSession } from '@/lib/session-resume'
 import type { SessionStatus } from 'db'
 
 const FROM_STATUSES: Record<string, SessionStatus[]> = {
   wake: ['AWAITING_INPUT', 'PAUSED'],
-  retry: ['FAILED'],
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {

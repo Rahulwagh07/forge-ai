@@ -10,9 +10,9 @@ export interface ToolCall {
   input: Record<string, unknown>
 }
 
-export type StopReason = 'tool_use' | 'end_turn' | 'max_tokens'
+type StopReason = 'tool_use' | 'end_turn' | 'max_tokens'
 
-export interface ProviderUsage {
+interface ProviderUsage {
   inputTokens?: number
   outputTokens?: number
 }

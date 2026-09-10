@@ -3,7 +3,7 @@ import { loadAppConfigFromEnv, mintInstallationToken, tokenEmbedUrl, type RepoRe
 import type { SandboxHandle } from 'sandbox'
 import { acquireSandbox, destroySandbox, touchSandbox } from '../sandbox/manager.ts'
 import type { ManagedSandbox } from '../sandbox/manager.ts'
-import { runAgentLoopForSession } from './loop/index.ts'
+import { runAgentLoopForSession } from './loop/run.ts'
 import { setSessionToken, clearSessionToken } from '../runtime/redaction.ts'
 import { publishEvent } from '../runtime/events.ts'
 import { log } from '../runtime/log.ts'
@@ -66,10 +66,7 @@ export async function runSession(sessionId: string): Promise<void> {
     if (!isAsk && !isResume) {
       const baseState = await ensureBaseBranch(sandbox, baseBranch, branchName, cloneUrl)
       if (baseState === 'missing') {
-        if (!(await finalizeIfNoSteering(sessionId, 'AWAITING_INPUT', null))) {
-          await requeueForSteering(sessionId)
-          return
-        }
+        if (!(await settleSession(sessionId, 'AWAITING_INPUT', null))) return
         await publishEvent(sessionId, {
           type: 'status',
           status: 'AWAITING_INPUT',
@@ -108,10 +105,7 @@ export async function runSession(sessionId: string): Promise<void> {
 
     log.info('agent loop completed', { sessionId, stoppedBy: loopResult.stoppedBy })
     if (isAsk) {
-      if (!(await finalizeIfNoSteering(sessionId, 'AWAITING_INPUT', null))) {
-        await requeueForSteering(sessionId)
-        return
-      }
+      if (!(await settleSession(sessionId, 'AWAITING_INPUT', null))) return
       await publishEvent(sessionId, { type: 'status', status: 'AWAITING_INPUT' })
       touchSandbox(managedSandbox)
       log.info('ask session answered, ready for follow-up', { sessionId })
@@ -121,10 +115,7 @@ export async function runSession(sessionId: string): Promise<void> {
       loopResult.stoppedBy === 'finish_session' || loopResult.stoppedBy === 'timeout'
     if (keepSessionOpen) {
       await pushAndNotify(sandbox, sessionId, branchName, cloneUrl)
-      if (!(await finalizeIfNoSteering(sessionId, 'AWAITING_INPUT', null))) {
-        await requeueForSteering(sessionId)
-        return
-      }
+      if (!(await settleSession(sessionId, 'AWAITING_INPUT', null))) return
       if (commitRequested) {
         const changeStats = await getChangeStats(sandbox, baseBranch, true, cloneUrl)
         await finishWithPr({
@@ -151,10 +142,7 @@ export async function runSession(sessionId: string): Promise<void> {
       changeStats.additions === 0 &&
       changeStats.deletions === 0
     ) {
-      if (!(await finalizeIfNoSteering(sessionId, 'DONE', new Date()))) {
-        await requeueForSteering(sessionId)
-        return
-      }
+      if (!(await settleSession(sessionId, 'DONE', new Date()))) return
       await publishEvent(sessionId, {
         type: 'status',
         status: 'DONE',
@@ -166,10 +154,7 @@ export async function runSession(sessionId: string): Promise<void> {
     }
 
     await pushAndNotify(sandbox, sessionId, branchName, cloneUrl)
-    if (!(await finalizeIfNoSteering(sessionId, 'AWAITING_INPUT', null))) {
-      await requeueForSteering(sessionId)
-      return
-    }
+    if (!(await settleSession(sessionId, 'AWAITING_INPUT', null))) return
     await finishWithPr({
       sessionId,
       branchName,
@@ -221,4 +206,14 @@ function parseRepoRef(fullName: string): RepoRef {
     throw new Error(`Invalid repo fullName: ${fullName}`)
   }
   return { owner, repo }
+}
+
+async function settleSession(
+  sessionId: string,
+  status: 'DONE' | 'AWAITING_INPUT',
+  completedAt: Date | null,
+): Promise<boolean> {
+  if (await finalizeIfNoSteering(sessionId, status, completedAt)) return true
+  await requeueForSteering(sessionId)
+  return false
 }

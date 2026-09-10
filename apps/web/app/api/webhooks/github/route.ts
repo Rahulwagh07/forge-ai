@@ -51,12 +51,12 @@ export async function POST(req: NextRequest) {
   try {
     if (event === 'installation') {
       const data = payload as InstallationPayload
-      const inst = data.installation
-      if (!inst?.id) return NextResponse.json({ ok: true, ignored: true })
+      const installation = data.installation
+      if (!installation?.id) return NextResponse.json({ ok: true, ignored: true })
 
-      const installationId = String(inst.id)
-      const accountLogin = inst.account?.login ?? ''
-      const accountType = inst.account?.type ?? 'User'
+      const installationId = String(installation.id)
+      const accountLogin = installation.account?.login ?? ''
+      const accountType = installation.account?.type ?? 'User'
 
       if (data.action === 'deleted') {
         const existing = await prisma.githubInstallation.findUnique({ where: { installationId } })
@@ -73,14 +73,14 @@ export async function POST(req: NextRequest) {
           where: { installationId },
           data: { accountLogin, accountType },
         })
-        for (const r of data.repositories ?? []) {
+        for (const repo of data.repositories ?? []) {
           await prisma.repo.upsert({
-            where: { githubRepoId: BigInt(r.id) },
-            update: { fullName: r.full_name, defaultBranch: r.default_branch },
+            where: { githubRepoId: BigInt(repo.id) },
+            update: { fullName: repo.full_name, defaultBranch: repo.default_branch },
             create: {
-              githubRepoId: BigInt(r.id),
-              fullName: r.full_name,
-              defaultBranch: r.default_branch,
+              githubRepoId: BigInt(repo.id),
+              fullName: repo.full_name,
+              defaultBranch: repo.default_branch,
               installationId: existing.id,
             },
           })
@@ -94,25 +94,25 @@ export async function POST(req: NextRequest) {
       const installationId = data.installation?.id
       if (!installationId) return NextResponse.json({ ok: true, ignored: true })
 
-      const inst = await prisma.githubInstallation.findUnique({
+      const installation = await prisma.githubInstallation.findUnique({
         where: { installationId: String(installationId) },
       })
-      if (!inst) return NextResponse.json({ ok: true })
+      if (!installation) return NextResponse.json({ ok: true })
 
-      for (const r of data.repositories_added ?? []) {
+      for (const repo of data.repositories_added ?? []) {
         await prisma.repo.upsert({
-          where: { githubRepoId: BigInt(r.id) },
-          update: { fullName: r.full_name, defaultBranch: r.default_branch },
+          where: { githubRepoId: BigInt(repo.id) },
+          update: { fullName: repo.full_name, defaultBranch: repo.default_branch },
           create: {
-            githubRepoId: BigInt(r.id),
-            fullName: r.full_name,
-            defaultBranch: r.default_branch,
-            installationId: inst.id,
+            githubRepoId: BigInt(repo.id),
+            fullName: repo.full_name,
+            defaultBranch: repo.default_branch,
+            installationId: installation.id,
           },
         })
       }
-      for (const r of data.repositories_removed ?? []) {
-        await prisma.repo.deleteMany({ where: { githubRepoId: BigInt(r.id) } })
+      for (const repo of data.repositories_removed ?? []) {
+        await prisma.repo.deleteMany({ where: { githubRepoId: BigInt(repo.id) } })
       }
       return NextResponse.json({ ok: true })
     }

@@ -19,9 +19,11 @@ export function useFileDiffs(sessionId: string, files: DiffFileMeta[]) {
   const fetchFileDiff = useCallback(
     async (path: string): Promise<(DiffFileMeta & { patch: string }) | null> => {
       try {
-        const res = await fetch(`/api/sessions/${sessionId}/diff?path=${encodeURIComponent(path)}`)
-        if (!res.ok) return null
-        return (await res.json()) as DiffFileMeta & { patch: string }
+        const response = await fetch(
+          `/api/sessions/${sessionId}/diff?path=${encodeURIComponent(path)}`,
+        )
+        if (!response.ok) return null
+        return (await response.json()) as DiffFileMeta & { patch: string }
       } catch {
         return null
       }
@@ -35,19 +37,19 @@ export function useFileDiffs(sessionId: string, files: DiffFileMeta[]) {
       inflight.current.add(path)
       if (!silent) setLoadingPaths((previous) => new Set(previous).add(path))
       try {
-        const data = await fetchFileDiff(path)
-        if (data !== null) {
-          const parsed = parseDiff(data.patch)[0]
+        const diffFile = await fetchFileDiff(path)
+        if (diffFile !== null) {
+          const parsed = parseDiff(diffFile.patch)[0]
           const file: ParsedFileChange = parsed
             ? {
                 ...parsed,
-                path: data.path,
-                previousPath: data.previousPath,
-                status: data.status,
-                additions: data.additions,
-                deletions: data.deletions,
+                path: diffFile.path,
+                previousPath: diffFile.previousPath,
+                status: diffFile.status,
+                additions: diffFile.additions,
+                deletions: diffFile.deletions,
               }
-            : placeholderFileFromMeta(data)
+            : placeholderFileFromMeta(diffFile)
           setLoaded((previous) => new Map(previous).set(path, file))
         }
       } finally {
@@ -76,20 +78,20 @@ export function useFileDiffs(sessionId: string, files: DiffFileMeta[]) {
       if (contentsInflight.current.has(path)) return
       contentsInflight.current.add(path)
       try {
-        const res = await fetch(
+        const response = await fetch(
           `/api/sessions/${sessionId}/diff?path=${encodeURIComponent(path)}&contents=1`,
         )
-        if (!res.ok) return
-        const data = (await res.json()) as DiffFileMeta & {
+        if (!response.ok) return
+        const contents = (await response.json()) as DiffFileMeta & {
           oldContent: string
           newContent: string
         }
         setContentsCache((previous) =>
           new Map(previous).set(path, {
-            oldContent: data.oldContent ?? '',
-            newContent: data.newContent ?? '',
-            contentTooLarge: data.contentTooLarge ?? false,
-            binary: data.binary ?? false,
+            oldContent: contents.oldContent ?? '',
+            newContent: contents.newContent ?? '',
+            contentTooLarge: contents.contentTooLarge ?? false,
+            binary: contents.binary ?? false,
           }),
         )
       } finally {

@@ -10,9 +10,9 @@ export function cleanPrTitle(title: string): string {
   return title.replace(/^Agent session:\s*/i, '').trim()
 }
 
-function truncate(value: unknown, max = 60): string {
-  const s = String(value ?? '').trim()
-  return s.length > max ? `${s.slice(0, max)}…` : s
+function truncate(text: unknown, max = 60): string {
+  const value = String(text ?? '').trim()
+  return value.length > max ? `${value.slice(0, max)}…` : value
 }
 
 export function describeToolCall(item: ChatItem): string {

@@ -7,7 +7,7 @@ function isNestedWork(item?: ChatItem): boolean {
   return item?.role === 'tool' || (item?.role === 'assistant' && Boolean(item.isThinking))
 }
 
-function collectToolRun(items: ChatItem[], start: number): { run: ChatItem[]; end: number } {
+export function collectToolRun(items: ChatItem[], start: number): { run: ChatItem[]; end: number } {
   const run: ChatItem[] = []
   let end = start - 1
   while (items[end + 1]?.role === 'tool') {

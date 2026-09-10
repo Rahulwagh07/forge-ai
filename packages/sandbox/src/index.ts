@@ -2,16 +2,8 @@ import { DockerSandboxProvider } from './providers/docker.ts'
 import type { SandboxProvider } from './provider.ts'
 import { env } from './env.ts'
 
-export { DockerSandboxProvider }
 export { shellQuote } from './utils.ts'
-export type {
-  CommandResult,
-  CreateSandboxOptions,
-  OutputChunk,
-  RunCommandOptions,
-  SandboxHandle,
-  SandboxProvider,
-} from './provider.ts'
+export type { CommandResult, OutputChunk, SandboxHandle, SandboxProvider } from './provider.ts'
 
 export function getSandboxProvider(): SandboxProvider {
   switch (env.SANDBOX_PROVIDER) {

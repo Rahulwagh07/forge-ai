@@ -1,5 +1,5 @@
 import type { SandboxHandle } from 'sandbox'
-import type { FileOps } from 'agent-core'
+import type { FileOps, LoopResult } from 'agent-core'
 import type { ManagedSandbox } from '../../sandbox/manager.ts'
 
 export const STORED_TOOL_OUTPUT_CHARS = 20000
@@ -17,7 +17,7 @@ export interface AgentLoopContext {
 }
 
 export interface AgentLoopOutcome {
-  result: import('agent-core').LoopResult
+  result: LoopResult
   commitRequested: boolean
 }
 

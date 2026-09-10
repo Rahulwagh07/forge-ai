@@ -10,7 +10,7 @@ const RESUMED_FILES_SHOWN = 20
 const SUMMARIZER_PATHS_SHOWN = 200
 const STORED_PATHS_KEPT = 1000
 
-export interface CompactionSettings {
+interface CompactionSettings {
   reserveTokens: number
   keepTokens: number
 }

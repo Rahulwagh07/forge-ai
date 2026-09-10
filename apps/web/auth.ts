@@ -55,9 +55,8 @@ const nextAuth: NextAuthResult = NextAuth({
 })
 
 export const handlers: NextAuthResult['handlers'] = nextAuth.handlers
-export const auth: () => Promise<Session | null> = nextAuth.auth
+const auth: () => Promise<Session | null> = nextAuth.auth
 export const signIn: NextAuthResult['signIn'] = nextAuth.signIn
-export const signOut: NextAuthResult['signOut'] = nextAuth.signOut
 
 export async function getSession(): Promise<Session | null> {
   return await auth()

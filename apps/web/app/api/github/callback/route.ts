@@ -31,27 +31,27 @@ export async function GET(req: NextRequest) {
       const octokit = appOctokit(config, Number(installationId))
 
       try {
-        const inst = await octokit.rest.apps.getInstallation({
+        const installationResponse = await octokit.rest.apps.getInstallation({
           installation_id: Number(installationId),
         })
-        const account = inst.data.account as {
+        const account = installationResponse.data.account as {
           login?: string
           type?: string
         }
         accountLogin = account.login ?? accountLogin
         accountType = account.type ?? accountType
-      } catch (e) {
+      } catch (error) {
         log.warn('failed to fetch installation account', {
-          error: e instanceof Error ? e.message : String(e),
+          error: error instanceof Error ? error.message : String(error),
         })
       }
 
       try {
-        const repoRes = await octokit.request('GET /installation/repositories', {})
-        repos = repoRes.data.repositories as InstallationRepository[]
-      } catch (e) {
+        const repositoriesResponse = await octokit.request('GET /installation/repositories', {})
+        repos = repositoriesResponse.data.repositories as InstallationRepository[]
+      } catch (error) {
         log.warn('failed to fetch installation repos', {
-          error: e instanceof Error ? e.message : String(e),
+          error: error instanceof Error ? error.message : String(error),
         })
       }
     }
@@ -67,18 +67,18 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    for (const r of repos) {
+    for (const repo of repos) {
       await prisma.repo.upsert({
-        where: { githubRepoId: BigInt(r.id) },
+        where: { githubRepoId: BigInt(repo.id) },
         update: {
-          fullName: r.full_name,
-          defaultBranch: r.default_branch,
+          fullName: repo.full_name,
+          defaultBranch: repo.default_branch,
           installationId: installation.id,
         },
         create: {
-          githubRepoId: BigInt(r.id),
-          fullName: r.full_name,
-          defaultBranch: r.default_branch,
+          githubRepoId: BigInt(repo.id),
+          fullName: repo.full_name,
+          defaultBranch: repo.default_branch,
           installationId: installation.id,
         },
       })

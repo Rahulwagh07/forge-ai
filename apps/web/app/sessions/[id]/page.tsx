@@ -4,8 +4,8 @@ import { prisma } from 'db'
 import { WorkspaceLayout } from '@/components/workspace/shell/workspace-layout'
 import { parsePullRequestUrl, type PrState } from '@/lib/pull-request'
 import { getPullRequestState } from '@/lib/pr-state'
-import { normalizeDiffFileStatus } from '@/lib/diff'
-import type { DiffFileMeta, StoredStep } from '@/lib/types'
+import { diffFileMetaFromRow } from '@/lib/diff'
+import type { StoredStep } from '@/lib/types'
 
 export default async function SessionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -44,15 +44,7 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
     where: { sessionId: id },
     orderBy: { path: 'asc' },
   })
-  const initialDiffFiles: DiffFileMeta[] = diffRows.map((row) => ({
-    path: row.path,
-    status: normalizeDiffFileStatus(row.status),
-    previousPath: row.previousPath ?? undefined,
-    additions: row.additions,
-    deletions: row.deletions,
-    binary: row.binary,
-    contentTooLarge: row.contentTooLarge,
-  }))
+  const initialDiffFiles = diffRows.map(diffFileMetaFromRow)
 
   let initialPrState: PrState | undefined
   if (dbSession.prUrl) {

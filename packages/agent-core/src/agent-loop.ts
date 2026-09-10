@@ -1,5 +1,6 @@
 import type { OutputChunk, SandboxHandle } from 'sandbox'
 import type { AgentMessage, LLMProvider, ProviderResponse, ToolCall } from './harness/provider.ts'
+import { isContextOverflowError } from './harness/provider.ts'
 import { STEERING_MESSAGE_CHARS } from './constants.ts'
 import { TOOL_DEFINITIONS, executeToolCall } from './harness/tools/index.ts'
 import {
@@ -11,17 +12,14 @@ import {
 } from './harness/compaction/index.ts'
 import { SYSTEM_PROMPT } from './harness/prompts/system.ts'
 
-export { SYSTEM_PROMPT } from './harness/prompts/system.ts'
-export { ASK_SYSTEM_PROMPT } from './harness/prompts/ask.ts'
-
-export interface LoopStepEvent {
+interface LoopStepEvent {
   stepNumber: number
   text?: string
   toolCalls?: ToolCall[]
   durationMs?: number
 }
 
-export interface LoopToolResultEvent {
+interface LoopToolResultEvent {
   stepNumber: number
   toolCallId: string
   toolName: string
@@ -31,7 +29,7 @@ export interface LoopToolResultEvent {
   durationMs?: number
 }
 
-export interface LoopToolOutputEvent extends OutputChunk {
+interface LoopToolOutputEvent extends OutputChunk {
   stepNumber: number
   toolCallId: string
   toolName: string
@@ -45,7 +43,7 @@ export interface LoopResult {
   compactions?: number
 }
 
-export interface ContextSnapshot {
+interface ContextSnapshot {
   stepNumber: number
   approxTokens: number
 }
@@ -67,10 +65,6 @@ export interface RunLoopOptions {
   onContext?: (snapshot: ContextSnapshot) => void
   compaction?: CompactionOptions
 }
-
-import { isContextOverflowError } from './harness/provider.ts'
-
-export { isContextOverflowError } from './harness/provider.ts'
 
 async function executeStepTools(args: {
   sandbox: SandboxHandle
