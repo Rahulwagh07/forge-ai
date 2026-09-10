@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { RepoSelect } from '@/components/workspace/home/repo-select'
 import { BranchSelect } from '@/components/workspace/home/branch-select'
+import { Welcome } from '@/components/workspace/home/welcome'
 import { Composer } from '@/components/workspace/chat/composer'
 import { createSession, listBranches, syncRepositories } from '@/lib/api'
 import { DEFAULT_BRANCH_LABEL, GITHUB_INSTALLATIONS_URL } from '@/lib/constants'
@@ -21,9 +22,11 @@ type Repo = { id: string; fullName: string; defaultBranch: string }
 export function HomeChat({
   repos,
   installationId,
+  userName,
 }: {
   repos: Repo[]
   installationId: string | null
+  userName: string | null
 }) {
   const router = useRouter()
   const [mode, setMode] = useState<'ask' | 'agent'>('ask')
@@ -91,6 +94,7 @@ export function HomeChat({
   if (repos.length === 0) {
     return (
       <div className="w-full max-w-3xl">
+        <Welcome userName={userName} />
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold">Forge</span>
@@ -131,6 +135,7 @@ export function HomeChat({
 
   return (
     <div className="w-full max-w-3xl">
+      <Welcome userName={userName} />
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold">Forge</span>

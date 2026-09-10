@@ -58,7 +58,13 @@ function SidebarBody({
     <>
       <SidebarHeader>
         <div className="flex items-center justify-between px-2 py-1">
-          <UserAvatar user={user} size={6} />
+          <img
+            src="/logo.png"
+            alt="Forge"
+            width={24}
+            height={24}
+            className="size-6 rounded-md object-cover"
+          />
           <div className="flex items-center gap-1 text-muted-foreground">
             <button
               onClick={onOpenSearch}
