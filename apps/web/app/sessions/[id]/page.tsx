@@ -1,7 +1,8 @@
 import { getSession } from '@/auth'
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { prisma } from 'db'
 import { WorkspaceLayout } from '@/components/workspace/shell/workspace-layout'
+import { NotFound } from '@/components/global/not-found'
 import { parsePullRequestUrl, type PrState } from '@/lib/pull-request'
 import { getPullRequestState } from '@/lib/pr-state'
 import { diffFileMetaFromRow } from '@/lib/diff'
@@ -25,10 +26,10 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
     },
   })
   if (!dbSession) {
-    return <div className="p-6 text-sm">Session not found</div>
+    notFound()
   }
   if (dbSession.userId !== userId) {
-    return <div className="p-6 text-sm">Not authorized for this session</div>
+    return <NotFound title="Not authorized" description="You don't have access to this session." />
   }
 
   const steps: StoredStep[] = dbSession.steps
