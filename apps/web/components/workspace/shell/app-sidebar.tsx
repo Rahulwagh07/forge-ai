@@ -99,7 +99,9 @@ function SidebarBody({
             <div className="px-2 py-1 text-sm text-foreground">Recent Sessions</div>
             <SidebarMenu className="gap-2">
               {sessions.length === 0 ? (
-                <div className="px-2 py-2 text-sm text-muted-foreground">No sessions yet</div>
+                <div className="px-2 py-2 text-sm text-muted-foreground text-center mt-2">
+                  No sessions yet
+                </div>
               ) : (
                 sessions.map((s) => {
                   const isActive = pathname === `/sessions/${s.id}`
