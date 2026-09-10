@@ -3,9 +3,14 @@ import { PubSub } from 'redis'
 import { requireOwnedSession, requireUser } from '@/lib/auth-guards'
 import { SSE_KEEPALIVE_MS } from '@/lib/constants'
 import { log } from '@/lib/log'
+import { parseParams } from '@/lib/validation'
+import { idParamSchema } from '@/lib/schemas/common'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: sessionId } = await params
+
+  const parsed = parseParams({ id: sessionId }, idParamSchema)
+  if ('error' in parsed) return parsed.error
 
   const user = await requireUser()
   if ('error' in user) return user.error

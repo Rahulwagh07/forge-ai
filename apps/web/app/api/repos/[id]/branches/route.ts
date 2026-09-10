@@ -3,9 +3,14 @@ import { prisma } from 'db'
 import { appOctokit, loadAppConfigFromEnv } from 'github'
 import { requireUser } from '@/lib/auth-guards'
 import { log } from '@/lib/log'
+import { parseParams } from '@/lib/validation'
+import { idParamSchema } from '@/lib/schemas/common'
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: repoId } = await params
+
+  const parsed = parseParams({ id: repoId }, idParamSchema)
+  if ('error' in parsed) return parsed.error
 
   const user = await requireUser()
   if ('error' in user) return user.error

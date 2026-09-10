@@ -3,6 +3,8 @@ import { getSession } from '@/auth'
 import { prisma } from 'db'
 import { appOctokit, loadAppConfigFromEnv } from 'github'
 import { log } from '@/lib/log'
+import { parseQuery } from '@/lib/validation'
+import { installationIdQuerySchema } from '@/lib/schemas/github-callback'
 
 interface InstallationRepository {
   id: number
@@ -16,10 +18,9 @@ export async function GET(req: NextRequest) {
 
   const userId = session.userId
 
-  const installationId = req.nextUrl.searchParams.get('installation_id')
-  if (!installationId) {
-    return NextResponse.json({ error: 'Missing installation_id' }, { status: 400 })
-  }
+  const parsed = parseQuery(req.nextUrl, installationIdQuerySchema)
+  if ('error' in parsed) return parsed.error
+  const installationId = parsed.data.installation_id
 
   try {
     let repos: InstallationRepository[] = []

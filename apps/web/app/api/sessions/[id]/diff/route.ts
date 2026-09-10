@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from 'db'
 import { requireOwnedSession, requireUser } from '@/lib/auth-guards'
 import { diffFileMetaFromRow, sumDiffTotals } from '@/lib/diff'
+import { parseQuery } from '@/lib/validation'
+import { diffQuerySchema } from '@/lib/schemas/session-diff'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: sessionId } = await params
@@ -11,9 +13,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const owned = await requireOwnedSession(sessionId, user.data.userId, { id: true })
   if ('error' in owned) return owned.error
 
-  const url = new URL(request.url)
-  const path = url.searchParams.get('path')
-  const withContents = url.searchParams.get('contents') === '1'
+  const parsed = parseQuery(request.url, diffQuerySchema)
+  if ('error' in parsed) return parsed.error
+  const { path, contents } = parsed.data
+  const withContents = contents === '1'
   if (path) {
     const row = await prisma.sessionDiffFile.findUnique({
       where: { sessionId_path: { sessionId, path } },

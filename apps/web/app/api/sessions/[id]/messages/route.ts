@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from 'db'
 import { requireOwnedSession, requireUser } from '@/lib/auth-guards'
 import { log } from '@/lib/log'
+import { parseBody } from '@/lib/validation'
+import { steerMessageSchema } from '@/lib/schemas/session-messages'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: sessionId } = await params
@@ -10,12 +12,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if ('error' in user) return user.error
 
   try {
-    const body = await request.json()
-    const { message } = body
-
-    if (!message) {
-      return NextResponse.json({ error: 'Missing required field: message' }, { status: 400 })
-    }
+    const parsed = await parseBody(request, steerMessageSchema)
+    if ('error' in parsed) return parsed.error
+    const { message } = parsed.data
 
     const owned = await requireOwnedSession(sessionId, user.data.userId, {
       status: true,

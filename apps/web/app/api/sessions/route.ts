@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from 'db'
 import { requireUser } from '@/lib/auth-guards'
-import { isValidBranchName } from '@/lib/utils'
 import { log } from '@/lib/log'
+import { parseBody, parseQuery } from '@/lib/validation'
+import { createSessionSchema, sessionListQuerySchema } from '@/lib/schemas/sessions'
 
 export async function GET(request: NextRequest) {
   const user = await requireUser()
   if ('error' in user) return user.error
   const userId = user.data.userId
 
-  const q = request.nextUrl.searchParams.get('q')?.trim()
+  const parsed = parseQuery(request.nextUrl, sessionListQuerySchema)
+  if ('error' in parsed) return parsed.error
+  const q = parsed.data.q
+
   // list the user's sessions, matching query against prompt or repo name when set
   const sessions = await prisma.session.findMany({
     where: {
@@ -49,19 +53,10 @@ export async function POST(request: NextRequest) {
   const userId = user.data.userId
 
   try {
-    const body = await request.json()
-    const { repoId, prompt, provider = 'OPENAI', mode = 'AGENT', baseBranch } = body
-    const normalizedMode = mode === 'ASK' ? 'ASK' : 'AGENT'
+    const parsed = await parseBody(request, createSessionSchema)
+    if ('error' in parsed) return parsed.error
+    const { repoId, prompt, provider, mode, baseBranch } = parsed.data
 
-    if (!repoId || !prompt) {
-      return NextResponse.json(
-        { error: 'Missing required fields: repoId, prompt' },
-        { status: 400 },
-      )
-    }
-    if (baseBranch !== undefined && baseBranch !== null && !isValidBranchName(baseBranch)) {
-      return NextResponse.json({ error: 'Invalid branch name' }, { status: 400 })
-    }
     const repo = await prisma.repo.findUnique({
       where: { id: repoId },
       include: { installation: true },
@@ -80,7 +75,7 @@ export async function POST(request: NextRequest) {
       data: {
         prompt,
         provider,
-        mode: normalizedMode,
+        mode,
         status: 'QUEUED',
         userId,
         repoId: repo.id,

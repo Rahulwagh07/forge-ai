@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { requireOwnedSession, requireUser } from '@/lib/auth-guards'
 import { requeueSession } from '@/lib/session-resume'
+import { parseBody } from '@/lib/validation'
+import { resumeSchema } from '@/lib/schemas/session-resume'
 import type { SessionStatus } from 'db'
 
 const FROM_STATUSES: Record<string, SessionStatus[]> = {
@@ -17,8 +19,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   })
   if ('error' in owned) return owned.error
 
-  const { action } = await request.json().catch(() => ({}))
-  const fromStatuses = FROM_STATUSES[action as string]
+  const parsed = await parseBody(request, resumeSchema)
+  if ('error' in parsed) return parsed.error
+  const action = parsed.data.action
+  const fromStatuses = FROM_STATUSES[action]
   if (!fromStatuses) {
     return NextResponse.json({ error: 'Unknown resume action' }, { status: 400 })
   }

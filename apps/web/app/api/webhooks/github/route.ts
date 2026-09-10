@@ -2,24 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'node:crypto'
 import { prisma } from 'db'
 import { log } from '@/lib/log'
-
-interface WebhookRepository {
-  id: number
-  full_name: string
-  default_branch: string
-}
-
-interface InstallationPayload {
-  installation?: { id: number; account?: { login?: string; type?: string } }
-  action?: string
-  repositories?: WebhookRepository[]
-}
-
-interface InstallationRepositoriesPayload {
-  installation?: { id: number }
-  repositories_added?: WebhookRepository[]
-  repositories_removed?: WebhookRepository[]
-}
+import { parseValue } from '@/lib/validation'
+import {
+  installationRepositoriesWebhookSchema,
+  installationWebhookSchema,
+} from '@/lib/schemas/github-webhook'
 
 function verifySignature(rawBody: string, signature: string | null, secret: string): boolean {
   if (!signature) return false
@@ -50,9 +37,10 @@ export async function POST(req: NextRequest) {
 
   try {
     if (event === 'installation') {
-      const data = payload as InstallationPayload
+      const parsed = parseValue(payload, installationWebhookSchema)
+      if ('error' in parsed) return parsed.error
+      const data = parsed.data
       const installation = data.installation
-      if (!installation?.id) return NextResponse.json({ ok: true, ignored: true })
 
       const installationId = String(installation.id)
       const accountLogin = installation.account?.login ?? ''
@@ -90,9 +78,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (event === 'installation_repositories') {
-      const data = payload as InstallationRepositoriesPayload
-      const installationId = data.installation?.id
-      if (!installationId) return NextResponse.json({ ok: true, ignored: true })
+      const parsed = parseValue(payload, installationRepositoriesWebhookSchema)
+      if ('error' in parsed) return parsed.error
+      const data = parsed.data
+      const installationId = data.installation.id
 
       const installation = await prisma.githubInstallation.findUnique({
         where: { installationId: String(installationId) },
