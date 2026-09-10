@@ -6,6 +6,7 @@ import { prisma } from 'db'
 import { SyncRepositoriesButton } from '@/components/workspace/home/sync-repositories-button'
 import { syncUserGithubInstallations } from '@/lib/github-sync'
 import { API, GITHUB_INSTALLATIONS_URL } from '@/lib/constants'
+import { env } from '@/env'
 import { log } from '@/lib/log'
 
 export default async function ConnectGithubPage() {
@@ -16,7 +17,7 @@ export default async function ConnectGithubPage() {
 
   // sync installations and repos on page load
   let installationsCount = 0
-  if (process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY) {
+  if (env.GITHUB_APP_ID && env.GITHUB_APP_PRIVATE_KEY) {
     try {
       await syncUserGithubInstallations(userId)
       installationsCount = await prisma.githubInstallation.count({
@@ -43,8 +44,8 @@ export default async function ConnectGithubPage() {
     }
   }
 
-  const slug = process.env.GITHUB_APP_SLUG
-  const callbackUrl = `${process.env.NEXTAUTH_URL ?? 'http://localhost:3000'}${API.githubCallback}`
+  const slug = env.GITHUB_APP_SLUG
+  const callbackUrl = `${env.NEXTAUTH_URL}${API.githubCallback}`
   const installUrl = slug
     ? `https://github.com/apps/${slug}/installations/new`
     : GITHUB_INSTALLATIONS_URL

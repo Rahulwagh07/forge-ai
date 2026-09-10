@@ -5,13 +5,14 @@ import {
   mintInstallationToken,
   type RepoRef,
 } from 'github'
+import { env } from '@/env'
 import type { PrState } from './pull-request'
 
 export async function getPullRequestState(
   repo: RepoRef,
   pullNumber: number,
 ): Promise<PrState | null> {
-  if (!process.env.GITHUB_APP_ID || !process.env.GITHUB_APP_PRIVATE_KEY) {
+  if (!env.GITHUB_APP_ID || !env.GITHUB_APP_PRIVATE_KEY) {
     return null
   }
   try {

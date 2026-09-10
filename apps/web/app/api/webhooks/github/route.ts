@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'node:crypto'
 import { prisma } from 'db'
+import { env } from '@/env'
 import { log } from '@/lib/log'
 import { parseValue } from '@/lib/validation'
 import {
@@ -19,7 +20,7 @@ function verifySignature(rawBody: string, signature: string | null, secret: stri
 }
 
 export async function POST(req: NextRequest) {
-  const secret = process.env.GITHUB_WEBHOOK_SECRET
+  const secret = env.GITHUB_WEBHOOK_SECRET
   const rawBody = await req.text()
   const signature = req.headers.get('x-hub-signature-256')
 

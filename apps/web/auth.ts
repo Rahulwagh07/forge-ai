@@ -2,6 +2,7 @@ import NextAuth from 'next-auth'
 import type { NextAuthResult, Session } from 'next-auth'
 import Google from 'next-auth/providers/google'
 import { prisma } from 'db'
+import { env } from '@/env'
 
 type GoogleProfileData = {
   sub?: string
@@ -12,10 +13,11 @@ type GoogleProfileData = {
 
 const nextAuth: NextAuthResult = NextAuth({
   trustHost: true,
+  secret: env.NEXTAUTH_SECRET,
   providers: [
     Google({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: env.GOOGLE_CLIENT_ID,
+      clientSecret: env.GOOGLE_CLIENT_SECRET,
     }),
   ],
   session: { strategy: 'jwt', maxAge: 60 * 60 * 24 * 2 },

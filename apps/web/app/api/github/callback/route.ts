@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/auth'
 import { prisma } from 'db'
 import { appOctokit, loadAppConfigFromEnv } from 'github'
+import { env } from '@/env'
 import { log } from '@/lib/log'
 import { parseQuery } from '@/lib/validation'
 import { installationIdQuerySchema } from '@/lib/schemas/github-callback'
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
     let accountLogin = `installation-${installationId}`
     let accountType = 'User'
 
-    if (process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY) {
+    if (env.GITHUB_APP_ID && env.GITHUB_APP_PRIVATE_KEY) {
       const config = loadAppConfigFromEnv()
       const octokit = appOctokit(config, Number(installationId))
 

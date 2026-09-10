@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from 'db'
 import { syncUserGithubInstallations } from '@/lib/github-sync'
 import { requireUser } from '@/lib/auth-guards'
+import { env } from '@/env'
 import { log } from '@/lib/log'
 
 export async function POST() {
@@ -9,7 +10,7 @@ export async function POST() {
   if ('error' in user) return user.error
   const userId = user.data.userId
 
-  if (!process.env.GITHUB_APP_ID || !process.env.GITHUB_APP_PRIVATE_KEY) {
+  if (!env.GITHUB_APP_ID || !env.GITHUB_APP_PRIVATE_KEY) {
     return NextResponse.json({ error: 'GitHub App not configured' }, { status: 500 })
   }
 

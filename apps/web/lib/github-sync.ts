@@ -1,6 +1,7 @@
 import 'server-only'
 import { prisma } from 'db'
 import { appOctokit, loadAppConfigFromEnv } from 'github'
+import { env } from '@/env'
 import { log } from './log'
 
 interface InstallationRepo {
@@ -10,7 +11,7 @@ interface InstallationRepo {
 }
 
 export async function syncUserGithubInstallations(userId: string) {
-  if (!process.env.GITHUB_APP_ID || !process.env.GITHUB_APP_PRIVATE_KEY) {
+  if (!env.GITHUB_APP_ID || !env.GITHUB_APP_PRIVATE_KEY) {
     return null
   }
   const config = loadAppConfigFromEnv()
