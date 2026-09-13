@@ -14,6 +14,7 @@ export function Composer({
   placeholder,
   disabled: disabledProp,
   allowCompleted,
+  autoFocus,
 }: {
   status?: SessionStatus
   onSend: (msg: string) => Promise<void>
@@ -21,6 +22,7 @@ export function Composer({
   placeholder?: string
   disabled?: boolean
   allowCompleted?: boolean
+  autoFocus?: boolean
 }) {
   const [value, setValue] = useState('')
   const [stopping, setStopping] = useState(false)
@@ -129,6 +131,7 @@ export function Composer({
       ) : null}
       <textarea
         ref={taRef}
+        autoFocus={autoFocus}
         value={value}
         onChange={(e) => {
           setValue(e.target.value)

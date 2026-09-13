@@ -226,6 +226,7 @@ export function WorkspaceLayout({
               onSend={handleSend}
               onStop={handleStop}
               allowCompleted
+              autoFocus
               placeholder="Ask a question"
             />
           </div>
@@ -274,7 +275,13 @@ export function WorkspaceLayout({
           ) : null}
           <div className="shrink-0 pb-3">
             <div className="mx-auto w-full max-w-3xl px-4">
-              <Composer status={status} onSend={handleSend} onStop={handleStop} allowCompleted />
+              <Composer
+                status={status}
+                onSend={handleSend}
+                onStop={handleStop}
+                allowCompleted
+                autoFocus
+              />
             </div>
           </div>
         </div>

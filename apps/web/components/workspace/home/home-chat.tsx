@@ -162,6 +162,7 @@ export function HomeChat({
       <div className="mx-auto w-full max-w-3xl">
         <Composer
           onSend={handleSubmit}
+          autoFocus
           placeholder={
             mode === 'agent'
               ? 'Ask an agent to do the work for you'
