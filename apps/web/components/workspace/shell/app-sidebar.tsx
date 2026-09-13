@@ -7,6 +7,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { Add01Icon, PanelLeftIcon, Search01Icon } from '@hugeicons/core-free-icons'
 import { LogoutButton } from '@/components/workspace/shell/logout-button'
 import { SearchDialog } from '@/components/workspace/shell/search-dialog'
+import { SessionMenu } from '@/components/workspace/shell/session-menu'
 import {
   Sidebar,
   SidebarContent,
@@ -19,7 +20,7 @@ import {
   SidebarMenuButton,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { listSessions, type SessionSummary } from '@/lib/api'
+import { deleteSession, listSessions, type SessionSummary } from '@/lib/api'
 import { UserAvatar } from '@/components/workspace/shell/user-avatar'
 import { RepoAvatar } from '@/components/workspace/repo-avatar'
 import { RunningRepoAvatar } from '@/components/workspace/running-repo-avatar'
@@ -36,6 +37,7 @@ function SidebarBody({
   sessions,
   pathname,
   onSelectSession,
+  onDeleteSession,
   onLinkNavigate,
   onOpenSearch,
   searchOpen,
@@ -47,6 +49,7 @@ function SidebarBody({
   sessions: SessionSummary[]
   pathname: string
   onSelectSession: (id: string) => void
+  onDeleteSession: (id: string) => void
   onLinkNavigate: () => void
   onOpenSearch: () => void
   searchOpen: boolean
@@ -135,6 +138,9 @@ function SidebarBody({
                           </span>
                         </span>
                       </SidebarMenuButton>
+                      {s.status !== 'RUNNING' ? (
+                        <SessionMenu onDelete={() => onDeleteSession(s.id)} />
+                      ) : null}
                     </SidebarMenuItem>
                   )
                 })
@@ -246,6 +252,20 @@ export function AppSidebar({
     setOpen(true)
   }
 
+  async function handleDelete(id: string) {
+    setSessions((previous) => previous.filter((s) => s.id !== id))
+    if (pathname === `/sessions/${id}`) router.push('/')
+    try {
+      await deleteSession(id)
+    } catch {
+      // put the row back if the delete failed
+      try {
+        const data = await listSessions()
+        setSessions(data.sessions)
+      } catch {}
+    }
+  }
+
   useEffect(
     () => () => {
       if (closeTimer.current) window.clearTimeout(closeTimer.current)
@@ -264,6 +284,7 @@ export function AppSidebar({
         closePeek()
         router.push(`/sessions/${id}`)
       }}
+      onDeleteSession={handleDelete}
       onLinkNavigate={closePeek}
       onOpenSearch={() => setSearchOpen(true)}
       searchOpen={searchOpen}
