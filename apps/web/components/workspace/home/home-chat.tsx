@@ -117,7 +117,11 @@ export function HomeChat({
         <div className="mx-auto w-full max-w-3xl">
           <Composer
             onSend={async () => {}}
-            placeholder="Ask Forge questions about your code"
+            placeholder={
+              mode === 'agent'
+                ? 'Ask an agent to do the work for you'
+                : 'Ask Forge questions about your code'
+            }
             disabled
           />
         </div>
@@ -156,7 +160,14 @@ export function HomeChat({
         </div>
       </div>
       <div className="mx-auto w-full max-w-3xl">
-        <Composer onSend={handleSubmit} placeholder="Ask Forge questions about your code" />
+        <Composer
+          onSend={handleSubmit}
+          placeholder={
+            mode === 'agent'
+              ? 'Ask an agent to do the work for you'
+              : 'Ask Forge questions about your code'
+          }
+        />
       </div>
       <div className="mx-auto mt-3 flex w-full max-w-3xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm">
         <RepoSelect
