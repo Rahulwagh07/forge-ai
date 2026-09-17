@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'node:crypto'
-import { prisma } from 'db'
+import { prisma } from '@repo/db'
 import { env } from '@/env'
 import { log } from '@/lib/log'
 import { parseValue } from '@/lib/validation'

@@ -1,6 +1,6 @@
 import { getSession } from '@/auth'
 import { redirect } from 'next/navigation'
-import { prisma } from 'db'
+import { prisma } from '@repo/db'
 import { HomeChat } from '@/components/workspace/home/home-chat'
 import { SignIn } from '@/components/workspace/home/sign-in'
 

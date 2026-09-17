@@ -1,5 +1,5 @@
 {
-  "name": "redis",
+  "name": "@repo/redis",
   "module": "src/index.ts",
   "type": "module",
   "private": true,

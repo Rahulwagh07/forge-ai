@@ -1,4 +1,4 @@
-import type { OutputChunk, SandboxHandle } from 'sandbox'
+import type { OutputChunk, SandboxHandle } from '@repo/sandbox'
 import type { AgentMessage, LLMProvider, ProviderResponse, ToolCall } from './harness/provider.ts'
 import { isContextOverflowError } from './harness/provider.ts'
 import { STEERING_MESSAGE_CHARS } from './constants.ts'

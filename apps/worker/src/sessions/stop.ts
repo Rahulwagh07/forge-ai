@@ -1,5 +1,5 @@
-import { prisma } from 'db'
-import type { SandboxHandle } from 'sandbox'
+import { prisma } from '@repo/db'
+import type { SandboxHandle } from '@repo/sandbox'
 import { touchSandbox, type ManagedSandbox } from '../sandbox/manager.ts'
 import { publishEvent } from '../runtime/events.ts'
 import { log } from '../runtime/log.ts'

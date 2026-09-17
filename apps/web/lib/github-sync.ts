@@ -1,6 +1,6 @@
 import 'server-only'
-import { prisma } from 'db'
-import { appOctokit, loadAppConfigFromEnv } from 'github'
+import { prisma } from '@repo/db'
+import { appOctokit, loadAppConfigFromEnv } from '@repo/github'
 import { env } from '@/env'
 import { log } from './log'
 

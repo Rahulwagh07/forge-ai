@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from 'db'
+import { prisma } from '@repo/db'
 import { requireOwnedSession, requireUser } from '@/lib/auth-guards'
 import { log } from '@/lib/log'
 import { parseParams } from '@/lib/validation'

@@ -1,5 +1,5 @@
 {
-  "name": "agent-core",
+  "name": "@repo/agent-core",
   "module": "src/index.ts",
   "type": "module",
   "private": true,
@@ -11,9 +11,9 @@
     "agent-smoke": "tsx tests/agent-smoke.ts"
   },
   "dependencies": {
-    "github": "workspace:*",
+    "@repo/github": "workspace:*",
+    "@repo/sandbox": "workspace:*",
     "openai": "^7.5.0",
-    "sandbox": "workspace:*",
     "zod": "^4.5.4"
   },
   "devDependencies": {

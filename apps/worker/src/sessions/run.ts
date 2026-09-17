@@ -1,6 +1,11 @@
-import { prisma } from 'db'
-import { loadAppConfigFromEnv, mintInstallationToken, tokenEmbedUrl, type RepoRef } from 'github'
-import type { SandboxHandle } from 'sandbox'
+import { prisma } from '@repo/db'
+import {
+  loadAppConfigFromEnv,
+  mintInstallationToken,
+  tokenEmbedUrl,
+  type RepoRef,
+} from '@repo/github'
+import type { SandboxHandle } from '@repo/sandbox'
 import { acquireSandbox, destroySandbox, touchSandbox } from '../sandbox/manager.ts'
 import type { ManagedSandbox } from '../sandbox/manager.ts'
 import { runAgentLoopForSession } from './loop/run.ts'

@@ -1,5 +1,5 @@
-import type { SandboxHandle } from 'sandbox'
-import { shellQuote } from 'sandbox'
+import type { SandboxHandle } from '@repo/sandbox'
+import { shellQuote } from '@repo/sandbox'
 import { fetchBaseAndStageUntracked, runInRepo } from './exec.ts'
 
 type StepFileStatus = 'created' | 'modified' | 'deleted' | 'renamed'

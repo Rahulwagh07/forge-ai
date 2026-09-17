@@ -1,4 +1,4 @@
-import type { OutputChunk, SandboxHandle } from 'sandbox'
+import type { OutputChunk, SandboxHandle } from '@repo/sandbox'
 import { assertSafePath, blockedCommandReason } from '../guards.ts'
 import type { ToolCall } from '../provider.ts'
 import {

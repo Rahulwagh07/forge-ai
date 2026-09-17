@@ -8,7 +8,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppSidebar } from '@/components/workspace/shell/app-sidebar'
 import { CollapsedSidebarTrigger } from '@/components/workspace/shell/collapsed-sidebar-trigger'
 import { getSession } from '@/auth'
-import { prisma } from 'db'
+import { prisma } from '@repo/db'
 import type { SessionSummary } from '@/lib/api'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })

@@ -1,4 +1,4 @@
-import { prisma } from 'db'
+import { prisma } from '@repo/db'
 import {
   ASK_SYSTEM_PROMPT,
   OpenAIProvider,
@@ -6,14 +6,14 @@ import {
   runAgentLoop,
   tryCompactLoop,
   truncateToolOutput,
-} from 'agent-core'
+} from '@repo/agent-core'
 import type {
   AgentMessage,
   FileOps,
   LoopResult,
   ProviderResponse,
   RunLoopOptions,
-} from 'agent-core'
+} from '@repo/agent-core'
 import { env } from '../../env.ts'
 import { publishEvent, toJsonValue } from '../../runtime/events.ts'
 import { log } from '../../runtime/log.ts'

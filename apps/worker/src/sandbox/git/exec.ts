@@ -1,5 +1,5 @@
-import type { CommandResult, SandboxHandle } from 'sandbox'
-import { shellQuote } from 'sandbox'
+import type { CommandResult, SandboxHandle } from '@repo/sandbox'
+import { shellQuote } from '@repo/sandbox'
 
 const REPO_DIR = '/workspace/repo'
 

@@ -4,7 +4,7 @@ import {
   loadAppConfigFromEnv,
   mintInstallationToken,
   type RepoRef,
-} from 'github'
+} from '@repo/github'
 import { env } from '@/env'
 import type { PrState } from './pull-request'
 

@@ -1,5 +1,5 @@
-import { Prisma } from 'db'
-import { PubSub } from 'redis'
+import { Prisma } from '@repo/db'
+import { PubSub } from '@repo/redis'
 import { redactFor } from './redaction.ts'
 
 const pubsub = new PubSub()

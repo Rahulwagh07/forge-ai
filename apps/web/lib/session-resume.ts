@@ -1,6 +1,6 @@
 import 'server-only'
-import { prisma } from 'db'
-import type { SessionStatus } from 'db'
+import { prisma } from '@repo/db'
+import type { SessionStatus } from '@repo/db'
 
 export async function requeueSession(
   sessionId: string,

@@ -1,8 +1,13 @@
-import { prisma } from 'db'
+import { prisma } from '@repo/db'
 import { env } from '../env.ts'
-import { COMPACTION_PROMPT, mergeFileOps, serializeConversation, type FileOps } from 'agent-core'
-import type { AgentMessage, ProviderResponse } from 'agent-core'
-import type { OpenAIProvider } from 'agent-core'
+import {
+  COMPACTION_PROMPT,
+  mergeFileOps,
+  serializeConversation,
+  type FileOps,
+} from '@repo/agent-core'
+import type { AgentMessage, ProviderResponse } from '@repo/agent-core'
+import type { OpenAIProvider } from '@repo/agent-core'
 import { toJsonValue } from '../runtime/events.ts'
 import { log } from '../runtime/log.ts'
 

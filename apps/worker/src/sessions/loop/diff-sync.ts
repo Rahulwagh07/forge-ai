@@ -1,5 +1,5 @@
-import { prisma } from 'db'
-import type { SandboxHandle } from 'sandbox'
+import { prisma } from '@repo/db'
+import type { SandboxHandle } from '@repo/sandbox'
 import { getFileContents, getSessionDiffSnapshot } from '../../sandbox/git/index.ts'
 import { publishEvent } from '../../runtime/events.ts'
 

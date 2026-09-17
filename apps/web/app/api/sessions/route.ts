@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from 'db'
+import { prisma } from '@repo/db'
 import { requireUser } from '@/lib/auth-guards'
 import { log } from '@/lib/log'
 import { parseBody, parseQuery } from '@/lib/validation'

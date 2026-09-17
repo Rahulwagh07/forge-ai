@@ -1,9 +1,9 @@
-import { prisma } from 'db'
-import { installationOctokit, findOrCreatePr, type RepoRef } from 'github'
-import type { SandboxHandle } from 'sandbox'
+import { prisma } from '@repo/db'
+import { installationOctokit, findOrCreatePr, type RepoRef } from '@repo/github'
+import type { SandboxHandle } from '@repo/sandbox'
 import { publishEvent } from '../runtime/events.ts'
 import { runInRepo } from '../sandbox/git/index.ts'
-import { shellQuote } from 'sandbox'
+import { shellQuote } from '@repo/sandbox'
 import { log } from '../runtime/log.ts'
 
 interface ChangeStats {

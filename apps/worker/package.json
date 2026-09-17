@@ -9,12 +9,12 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "agent-core": "workspace:*",
-    "db": "workspace:*",
+    "@repo/agent-core": "workspace:*",
+    "@repo/db": "workspace:*",
+    "@repo/github": "workspace:*",
+    "@repo/redis": "workspace:*",
+    "@repo/sandbox": "workspace:*",
     "dotenv": "^17.4.2",
-    "github": "workspace:*",
-    "redis": "workspace:*",
-    "sandbox": "workspace:*",
     "zod": "^4.5.4"
   },
   "devDependencies": {

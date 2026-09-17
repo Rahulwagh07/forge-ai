@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from 'db'
-import { appOctokit, loadAppConfigFromEnv } from 'github'
+import { prisma } from '@repo/db'
+import { appOctokit, loadAppConfigFromEnv } from '@repo/github'
 import { requireUser } from '@/lib/auth-guards'
 import { log } from '@/lib/log'
 import { parseParams } from '@/lib/validation'

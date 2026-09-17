@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { PubSub } from 'redis'
+import { PubSub } from '@repo/redis'
 import { requireOwnedSession, requireUser } from '@/lib/auth-guards'
 import { SSE_KEEPALIVE_MS } from '@/lib/constants'
 import { log } from '@/lib/log'

@@ -1,7 +1,7 @@
 import NextAuth from 'next-auth'
 import type { NextAuthResult, Session } from 'next-auth'
 import Google from 'next-auth/providers/google'
-import { prisma } from 'db'
+import { prisma } from '@repo/db'
 import { env } from '@/env'
 
 type GoogleProfileData = {

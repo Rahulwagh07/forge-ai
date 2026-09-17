@@ -1,5 +1,5 @@
-import type { SandboxHandle } from 'sandbox'
-import { shellQuote } from 'sandbox'
+import type { SandboxHandle } from '@repo/sandbox'
+import { shellQuote } from '@repo/sandbox'
 import { runInRepo } from './exec.ts'
 
 type BaseBranchState = 'exists' | 'seeded' | 'missing'

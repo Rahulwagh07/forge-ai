@@ -1,4 +1,4 @@
-import { prisma } from 'db'
+import { prisma } from '@repo/db'
 import { env } from '../env.ts'
 import { runSession } from '../sessions/run.ts'
 import { startSandboxCleanup } from '../sandbox/manager.ts'

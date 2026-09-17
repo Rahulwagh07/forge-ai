@@ -1,6 +1,6 @@
 import { getSession } from '@/auth'
 import { notFound, redirect } from 'next/navigation'
-import { prisma } from 'db'
+import { prisma } from '@repo/db'
 import { WorkspaceLayout } from '@/components/workspace/shell/workspace-layout'
 import { NotFound } from '@/components/global/not-found'
 import { parsePullRequestUrl, type PrState } from '@/lib/pull-request'

@@ -1,7 +1,7 @@
-import { prisma } from 'db'
-import { getSandboxProvider } from 'sandbox'
+import { prisma } from '@repo/db'
+import { getSandboxProvider } from '@repo/sandbox'
 import { env } from '../env.ts'
-import type { SandboxHandle, SandboxProvider } from 'sandbox'
+import type { SandboxHandle, SandboxProvider } from '@repo/sandbox'
 import { log } from '../runtime/log.ts'
 
 const sandboxProvider: SandboxProvider = getSandboxProvider()

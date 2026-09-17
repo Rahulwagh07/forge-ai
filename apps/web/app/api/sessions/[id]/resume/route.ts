@@ -3,7 +3,7 @@ import { requireOwnedSession, requireUser } from '@/lib/auth-guards'
 import { requeueSession } from '@/lib/session-resume'
 import { parseBody } from '@/lib/validation'
 import { resumeSchema } from '@/lib/schemas/session-resume'
-import type { SessionStatus } from 'db'
+import type { SessionStatus } from '@repo/db'
 
 const FROM_STATUSES: Record<string, SessionStatus[]> = {
   wake: ['AWAITING_INPUT', 'PAUSED'],

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from 'db'
+import { prisma } from '@repo/db'
 import { requireOwnedSession, requireUser } from '@/lib/auth-guards'
 import { diffFileMetaFromRow, sumDiffTotals } from '@/lib/diff'
 import { parseQuery } from '@/lib/validation'

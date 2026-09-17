@@ -1,5 +1,5 @@
 {
-  "name": "github",
+  "name": "@repo/github",
   "module": "src/index.ts",
   "type": "module",
   "private": true,

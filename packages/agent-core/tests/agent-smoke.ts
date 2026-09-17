@@ -1,15 +1,15 @@
 import { configDotenv } from 'dotenv'
 configDotenv()
 
-import { getSandboxProvider } from 'sandbox'
-import type { SandboxHandle } from 'sandbox'
+import { getSandboxProvider } from '@repo/sandbox'
+import type { SandboxHandle } from '@repo/sandbox'
 import {
   findOrCreatePr,
   installationOctokit,
   loadAppConfigFromEnv,
   mintInstallationToken,
   tokenEmbedUrl,
-} from 'github'
+} from '@repo/github'
 import { OpenAIProvider, runAgentLoop } from '../src/index.ts'
 
 const REPO_URL = process.env.TEST_REPO_URL

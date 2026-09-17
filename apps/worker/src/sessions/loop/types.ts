@@ -1,5 +1,5 @@
-import type { SandboxHandle } from 'sandbox'
-import type { FileOps, LoopResult } from 'agent-core'
+import type { SandboxHandle } from '@repo/sandbox'
+import type { FileOps, LoopResult } from '@repo/agent-core'
 import type { ManagedSandbox } from '../../sandbox/manager.ts'
 
 export const STORED_TOOL_OUTPUT_CHARS = 20000

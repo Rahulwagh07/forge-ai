@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { prisma } from 'db'
+import { prisma } from '@repo/db'
 import { syncUserGithubInstallations } from '@/lib/github-sync'
 import { requireUser } from '@/lib/auth-guards'
 import { env } from '@/env'

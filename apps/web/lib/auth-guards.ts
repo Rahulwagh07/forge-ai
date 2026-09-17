@@ -1,7 +1,7 @@
 import 'server-only'
 import { NextResponse } from 'next/server'
-import { prisma } from 'db'
-import type { Prisma } from 'db'
+import { prisma } from '@repo/db'
+import type { Prisma } from '@repo/db'
 import { getSession } from '@/auth'
 
 type GuardResult<T> = { data: T } | { error: NextResponse }
