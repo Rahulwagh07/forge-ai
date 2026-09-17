@@ -1,6 +1,19 @@
 import { prisma } from 'db'
-import { ASK_SYSTEM_PROMPT, OpenAIProvider, runAgentLoop, truncateToolOutput } from 'agent-core'
-import type { AgentMessage, FileOps, RunLoopOptions } from 'agent-core'
+import {
+  ASK_SYSTEM_PROMPT,
+  OpenAIProvider,
+  createCompactionState,
+  runAgentLoop,
+  tryCompactLoop,
+  truncateToolOutput,
+} from 'agent-core'
+import type {
+  AgentMessage,
+  FileOps,
+  LoopResult,
+  ProviderResponse,
+  RunLoopOptions,
+} from 'agent-core'
 import { env } from '../../env.ts'
 import { publishEvent, toJsonValue } from '../../runtime/events.ts'
 import { log } from '../../runtime/log.ts'
@@ -11,12 +24,18 @@ import {
   type AgentLoopOutcome,
   type CompactionTracker,
 } from './types.ts'
-import { buildInitialMessages, claimReplayedSteering, loadResumeHistory } from './resume.ts'
+import {
+  buildInitialMessages,
+  claimCompactRequests,
+  claimReplayedSteering,
+  isCompactSteering,
+  loadResumeHistory,
+} from './resume.ts'
 import { syncDiffAfterTool } from './diff-sync.ts'
 
 async function summarizeAndCheckpoint(
   sessionId: string,
-  provider: OpenAIProvider,
+  summarizerProvider: OpenAIProvider,
   tracker: CompactionTracker,
   request: {
     absoluteStepNumber: number
@@ -25,9 +44,14 @@ async function summarizeAndCheckpoint(
     previousSummary?: string
     fileOps: FileOps
   },
-): Promise<{ summary: string; readFiles: string[]; modifiedFiles: string[] }> {
-  const { summary, readFiles, modifiedFiles } = await summarizeWithLLM(
-    provider,
+): Promise<{
+  summary: string
+  readFiles: string[]
+  modifiedFiles: string[]
+  summaryUsage: ProviderResponse['usage']
+}> {
+  const { summary, readFiles, modifiedFiles, summaryUsage } = await summarizeWithLLM(
+    summarizerProvider,
     request.messagesToSummarize,
     request.previousSummary ?? tracker.previousSummary,
     request.fileOps,
@@ -39,6 +63,7 @@ async function summarizeAndCheckpoint(
     summary,
     fileOps: { readFiles, modifiedFiles },
     priorCumulative: tracker.cumulativeFileOps,
+    summaryUsage,
   })
   tracker.previousSummary = savedCheckpoint.summary
   tracker.cumulativeFileOps = {
@@ -48,25 +73,36 @@ async function summarizeAndCheckpoint(
   publishEvent(sessionId, { type: 'compaction', stepNumber: request.absoluteStepNumber }).catch(
     () => {},
   )
+  publishEvent(sessionId, {
+    type: 'compaction_usage',
+    stepNumber: request.absoluteStepNumber,
+    summaryUsage,
+  }).catch(() => {})
   return {
     summary: savedCheckpoint.summary,
     readFiles: savedCheckpoint.readFiles,
     modifiedFiles: savedCheckpoint.modifiedFiles,
+    summaryUsage,
   }
 }
 
 export async function runAgentLoopForSession(ctx: AgentLoopContext): Promise<AgentLoopOutcome> {
   const { sessionId, isAsk, sandbox } = ctx
 
-  const provider = new OpenAIProvider({
-    sessionId,
-    credentials: {
-      OPENAI_API_KEY: env.OPENAI_API_KEY,
-      OPENAI_BASE_URL: env.OPENAI_BASE_URL,
-      OPENAI_MODEL: env.OPENAI_MODEL,
-      OPENROUTER_API_KEY: env.OPENROUTER_API_KEY,
-    },
-  })
+  const providerCredentials = {
+    OPENAI_API_KEY: env.OPENAI_API_KEY,
+    OPENAI_BASE_URL: env.OPENAI_BASE_URL,
+    OPENAI_MODEL: env.OPENAI_MODEL,
+    OPENROUTER_API_KEY: env.OPENROUTER_API_KEY,
+  }
+  const provider = new OpenAIProvider({ sessionId, credentials: providerCredentials })
+  const summarizerProvider = env.COMPACTION_MODEL
+    ? new OpenAIProvider({
+        sessionId,
+        credentials: providerCredentials,
+        model: env.COMPACTION_MODEL,
+      })
+    : provider
   const maxSteps = env.SESSION_MAX_STEPS
   const wallClockTimeoutMs = env.SESSION_WALL_CLOCK_MS
   let commitRequested = false
@@ -77,9 +113,10 @@ export async function runAgentLoopForSession(ctx: AgentLoopContext): Promise<Age
     historySteps.length > 0 || checkpoint
       ? buildInitialMessages(ctx.prompt, isAsk, historySteps, checkpoint)
       : undefined
+  const compactRequests = await claimCompactRequests(sessionId)
   await claimReplayedSteering(sessionId, historySteps)
 
-  const compactionSettings = loadCompactionSettings()
+  const compactionSettings = loadCompactionSettings(provider.modelId)
   let latestStepNumber = 0
   const compactionTracker: CompactionTracker = {
     previousSummary: checkpoint?.summary,
@@ -88,11 +125,74 @@ export async function runAgentLoopForSession(ctx: AgentLoopContext): Promise<Age
       modifiedFiles: checkpoint?.modifiedFiles ?? [],
     },
   }
-  let forceCompactRequested = false
+  let forceCompactRequested = compactRequests > 0
   const consumeForceCompact = () => {
     if (!forceCompactRequested) return false
     forceCompactRequested = false
     return true
+  }
+
+  if (compactRequests > 0 && historySteps.length > 0) {
+    const pendingRealSteering = await prisma.sessionStep.count({
+      where: { sessionId, type: 'STEERING', consumedAt: null },
+    })
+    if (pendingRealSteering === 0) {
+      return await maintenanceCompact()
+    }
+  }
+
+  async function maintenanceCompact(): Promise<AgentLoopOutcome> {
+    let maintenanceUsage: ProviderResponse['usage'] = {}
+    let maintenanceCompactions = 0
+    if (compactionSettings) {
+      const maintenanceMessages =
+        initialMessages ?? buildInitialMessages(ctx.prompt, isAsk, historySteps, checkpoint)
+      const maintenanceState = createCompactionState(compactionTracker.previousSummary)
+      const compacted = await tryCompactLoop(
+        maintenanceMessages,
+        {
+          contextWindow: provider.contextWindow,
+          ...compactionSettings,
+          summarize: async (request) => {
+            const outcome = await summarizeAndCheckpoint(
+              sessionId,
+              summarizerProvider,
+              compactionTracker,
+              {
+                ...request,
+                absoluteStepNumber: stepNumberOffset,
+              },
+            )
+            maintenanceUsage = outcome.summaryUsage ?? {}
+            return outcome
+          },
+        },
+        maintenanceState,
+        stepNumberOffset,
+        true,
+      )
+      maintenanceCompactions = compacted ? 1 : 0
+    }
+    log.info('maintenance compaction', {
+      sessionId,
+      compactions: maintenanceCompactions,
+      maintenanceUsage,
+    })
+    if (maintenanceCompactions === 0) {
+      publishEvent(sessionId, {
+        type: 'compaction',
+        stepNumber: stepNumberOffset,
+        compacted: false,
+      }).catch(() => {})
+    }
+    const maintenanceResult: LoopResult = {
+      steps: 0,
+      stoppedBy: 'finish_session',
+      totalUsage: maintenanceUsage,
+      toolCallCounts: {},
+      compactions: maintenanceCompactions,
+    }
+    return { result: maintenanceResult, commitRequested: false }
   }
 
   const loopOptions: RunLoopOptions = {
@@ -120,13 +220,13 @@ export async function runAgentLoopForSession(ctx: AgentLoopContext): Promise<Age
           data: { consumedAt: new Date() },
         })
         if (claim.count === 0) continue
-        const content = step.content as { message?: unknown }
-        const message =
-          typeof content.message === 'string' ? content.message : JSON.stringify(step.content)
-        if (message.trim() === '/compact') {
+        if (isCompactSteering(step.content)) {
           forceCompactRequested = true
           continue
         }
+        const content = step.content as { message?: unknown }
+        const message =
+          typeof content.message === 'string' ? content.message : JSON.stringify(step.content)
         deliveredMessages.push(message)
         publishEvent(sessionId, { type: 'steering', message }).catch((error) =>
           log.warn('failed to publish steering', {
@@ -210,7 +310,7 @@ export async function runAgentLoopForSession(ctx: AgentLoopContext): Promise<Age
         }
       }
 
-      if (['writeFile', 'runCommand', 'commitAndOpenPR'].includes(event.toolName)) {
+      if (['writeFile', 'editFile', 'runCommand', 'commitAndOpenPR'].includes(event.toolName)) {
         await syncDiffAfterTool(
           sandbox,
           sessionId,
@@ -228,7 +328,7 @@ export async function runAgentLoopForSession(ctx: AgentLoopContext): Promise<Age
       ...compactionSettings,
       consumeForceCompact,
       summarize: (request) =>
-        summarizeAndCheckpoint(sessionId, provider, compactionTracker, {
+        summarizeAndCheckpoint(sessionId, summarizerProvider, compactionTracker, {
           ...request,
           absoluteStepNumber: stepNumberOffset + latestStepNumber,
         }),
@@ -236,6 +336,15 @@ export async function runAgentLoopForSession(ctx: AgentLoopContext): Promise<Age
   }
 
   const result = await runAgentLoop(loopOptions)
+
+  log.info('agent loop usage', {
+    sessionId,
+    steps: result.steps,
+    stoppedBy: result.stoppedBy,
+    totalUsage: result.totalUsage,
+    toolCallCounts: result.toolCallCounts,
+    compactions: result.compactions,
+  })
 
   return { result, commitRequested }
 }

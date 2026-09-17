@@ -17,6 +17,7 @@ interface LoopStepEvent {
   text?: string
   toolCalls?: ToolCall[]
   durationMs?: number
+  stepUsage?: ProviderResponse['usage']
 }
 
 interface LoopToolResultEvent {
@@ -41,6 +42,8 @@ export interface LoopResult {
   finalText?: string
   approxTokens?: number
   compactions?: number
+  totalUsage: NonNullable<ProviderResponse['usage']>
+  toolCallCounts: Record<string, number>
 }
 
 interface ContextSnapshot {
@@ -134,8 +137,24 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
   let finalText: string | undefined
   let stepNumber = 0
   let lastPromptTokens: number | undefined
+  const totalUsage: NonNullable<ProviderResponse['usage']> = {}
+  const toolCallCounts: Record<string, number> = {}
+  const accumulateStepUsage = (stepUsage: ProviderResponse['usage']) => {
+    if (typeof stepUsage?.inputTokens === 'number') {
+      totalUsage.inputTokens = (totalUsage.inputTokens ?? 0) + stepUsage.inputTokens
+    }
+    if (typeof stepUsage?.outputTokens === 'number') {
+      totalUsage.outputTokens = (totalUsage.outputTokens ?? 0) + stepUsage.outputTokens
+    }
+    if (typeof stepUsage?.cacheReadTokens === 'number') {
+      totalUsage.cacheReadTokens = (totalUsage.cacheReadTokens ?? 0) + stepUsage.cacheReadTokens
+    }
+    if (typeof stepUsage?.cacheWriteTokens === 'number') {
+      totalUsage.cacheWriteTokens = (totalUsage.cacheWriteTokens ?? 0) + stepUsage.cacheWriteTokens
+    }
+  }
   const compactionState: LoopCompactionState = createCompactionState()
-  // Window is a model fact: provider default wins, explicit option overrides.
+  const promptHead = JSON.stringify(messages.slice(0, 2))
   const compaction = opts.compaction && {
     contextWindow: provider.contextWindow,
     ...opts.compaction,
@@ -170,6 +189,9 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
       await tryCompactLoop(messages, compaction, compactionState, stepNumber, true)
     }
 
+    if (JSON.stringify(messages.slice(0, 2)) !== promptHead) {
+      throw new Error('[agent-core] prompt head mutated during loop')
+    }
     const stepStartedAt = Date.now()
     const emitToken = (delta: string) => opts.onToken?.({ stepNumber, delta })
     let response: ProviderResponse
@@ -191,6 +213,7 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
     if (typeof response.usage?.inputTokens === 'number') {
       lastPromptTokens = response.usage.inputTokens
     }
+    accumulateStepUsage(response.usage)
     if (response.stopReason === 'max_tokens' && compaction) {
       // truncated output is unusable: compact and retry the step instead of stopping
       const recovered = await tryCompactLoop(
@@ -213,7 +236,12 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
     if (response.stopReason !== 'tool_use' || response.toolCalls.length === 0) {
       stoppedBy = 'no_tool_calls'
       finalText = response.text
-      await opts.onStep?.({ stepNumber, text: response.text, durationMs })
+      await opts.onStep?.({
+        stepNumber,
+        text: response.text,
+        durationMs,
+        stepUsage: response.usage,
+      })
       break
     }
 
@@ -222,7 +250,11 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
       text: response.text,
       toolCalls: response.toolCalls,
       durationMs,
+      stepUsage: response.usage,
     })
+    for (const toolCall of response.toolCalls) {
+      toolCallCounts[toolCall.name] = (toolCallCounts[toolCall.name] ?? 0) + 1
+    }
 
     const { finished, finalText: toolFinalText } = await executeStepTools({
       sandbox,
@@ -262,5 +294,7 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
     finalText,
     approxTokens: estimateMessagesTokens(messages),
     compactions: compactionState.compactions,
+    totalUsage,
+    toolCallCounts,
   }
 }

@@ -1,7 +1,17 @@
 import type { OutputChunk, SandboxHandle } from 'sandbox'
 import { assertSafePath, blockedCommandReason } from '../guards.ts'
 import type { ToolCall } from '../provider.ts'
-import { MAX_COMMAND_TIMEOUT_MS, MAX_TOOL_OUTPUT_CHARS } from '../../constants.ts'
+import {
+  MAX_COMMAND_TIMEOUT_MS,
+  MAX_TOOL_OUTPUT_CHARS,
+  READ_DEFAULT_MAX_BYTES,
+  READ_DEFAULT_MAX_LINES,
+  TOOL_OUTPUT_PREVIEW_CHARS,
+  TOOL_OUTPUT_SPILL_CHARS,
+} from '../../constants.ts'
+
+const REPO_ROOT = '/workspace/repo'
+const SPILL_DIRECTORY = '/tmp/devin-tool-output'
 
 interface ToolOutcome {
   output: string
@@ -14,7 +24,7 @@ interface ToolExecutionOptions {
   signal?: AbortSignal
 }
 
-const WRITE_TOOLS = new Set(['writeFile', 'commitAndOpenPR'])
+const WRITE_TOOLS = new Set(['writeFile', 'editFile', 'commitAndOpenPR'])
 
 export async function executeToolCall(
   sandbox: SandboxHandle,
@@ -45,7 +55,54 @@ async function invokeToolCall(
       if (!path) return badInput('readFile requires `path`')
       const blocked = assertSafePath(path)
       if (blocked) return badInput(blocked)
-      return success(truncateToolOutput(await sandbox.readFile(path)))
+      const startLine = requirePositiveInt(call.input.offset)
+      const maxLines = requirePositiveInt(call.input.limit)
+      const fileContent = await sandbox.readFile(path)
+      return success(formatFileRange(fileContent, path, startLine, maxLines))
+    }
+
+    case 'editFile': {
+      const path = requireString(call.input.path)
+      const oldString = typeof call.input.oldString === 'string' ? call.input.oldString : undefined
+      const newString = typeof call.input.newString === 'string' ? call.input.newString : undefined
+      if (!path || oldString === undefined || newString === undefined) {
+        return badInput('editFile requires `path`, `oldString` and `newString`')
+      }
+      const blocked = assertSafePath(path)
+      if (blocked) return badInput(blocked)
+      return await applyStringReplacement(sandbox, path, oldString, newString)
+    }
+
+    case 'grep': {
+      const pattern = requireString(call.input.pattern)
+      if (!pattern) return badInput('grep requires `pattern`')
+      const searchPath = requireString(call.input.path) ?? REPO_ROOT
+      const blocked = assertSafePath(searchPath)
+      if (blocked) return badInput(blocked)
+      const searchResult = await sandbox.runCommand(
+        `rg -n --no-heading --max-count 100 -- ${quoteShellArgument(pattern)} ${quoteShellArgument(searchPath)}`,
+        { signal: options.signal },
+      )
+      if (searchResult.exitCode === 1 && !searchResult.stdout.trim()) {
+        return success('no matches')
+      }
+      const combinedOutput = [searchResult.stdout, searchResult.stderr].filter(Boolean).join('\n')
+      return success(await spillOversizedOutput(sandbox, call.id, combinedOutput))
+    }
+
+    case 'find': {
+      const pattern = requireString(call.input.pattern)
+      if (!pattern) return badInput('find requires `pattern`')
+      const searchPath = requireString(call.input.path) ?? REPO_ROOT
+      const blocked = assertSafePath(searchPath)
+      if (blocked) return badInput(blocked)
+      const searchResult = await sandbox.runCommand(
+        `find ${quoteShellArgument(searchPath)} -name ${quoteShellArgument(pattern)} | head -n 100`,
+        { signal: options.signal },
+      )
+      const matchedPaths = searchResult.stdout.trim()
+      if (!matchedPaths) return success('no matches')
+      return success(await spillOversizedOutput(sandbox, call.id, matchedPaths))
     }
 
     case 'writeFile': {
@@ -87,12 +144,14 @@ async function invokeToolCall(
         onOutput: options.onOutput,
         signal: options.signal,
       })
-      const parts = [
+      const combinedOutput = [
         `exitCode: ${result.exitCode}`,
-        result.stdout && `stdout:\n${truncateToolOutput(result.stdout)}`,
-        result.stderr && `stderr:\n${truncateToolOutput(result.stderr)}`,
-      ].filter(Boolean)
-      return success(parts.join('\n'))
+        result.stdout && `stdout:\n${result.stdout}`,
+        result.stderr && `stderr:\n${result.stderr}`,
+      ]
+        .filter(Boolean)
+        .join('\n')
+      return success(await spillOversizedOutput(sandbox, call.id, combinedOutput))
     }
 
     case 'commitAndOpenPR':
@@ -137,6 +196,88 @@ export function truncateToolOutput(text: string, max = MAX_TOOL_OUTPUT_CHARS): s
   const tailSize = max - headSize
   const omitted = text.length - headSize - tailSize
   return `${text.slice(0, headSize)}\n... [${omitted} chars truncated] ...\n${text.slice(-tailSize)}`
+}
+
+function formatFileRange(
+  fileContent: string,
+  filePath: string,
+  startLine?: number,
+  maxLines?: number,
+): string {
+  const allLines = fileContent.split('\n')
+  const rangeStart = startLine ? startLine - 1 : 0
+  if (rangeStart >= allLines.length) {
+    return `offset ${startLine} is beyond end of file (${allLines.length} lines total)`
+  }
+  const selectedLines =
+    maxLines !== undefined
+      ? allLines.slice(rangeStart, rangeStart + maxLines)
+      : allLines.slice(rangeStart)
+  const rangeEnd = rangeStart + selectedLines.length
+  let rangedContent = selectedLines.join('\n')
+  if (Buffer.byteLength(rangedContent) > READ_DEFAULT_MAX_BYTES) {
+    const cappedLines: string[] = []
+    let cappedBytes = 0
+    for (const line of selectedLines) {
+      const lineBytes = Buffer.byteLength(`${line}\n`)
+      if (
+        cappedLines.length >= READ_DEFAULT_MAX_LINES ||
+        cappedBytes + lineBytes > READ_DEFAULT_MAX_BYTES
+      )
+        break
+      cappedLines.push(line)
+      cappedBytes += lineBytes
+    }
+    rangedContent = `${cappedLines.join('\n')}\n\n[Showing lines ${rangeStart + 1}-${rangeStart + cappedLines.length} of ${allLines.length}. Use offset=${rangeStart + cappedLines.length + 1} to continue.]`
+    return rangedContent
+  }
+  if (rangeEnd < allLines.length) {
+    return `${rangedContent}\n\n[${allLines.length - rangeEnd} more lines in ${filePath}. Use offset=${rangeEnd + 1} to continue.]`
+  }
+  return rangedContent
+}
+
+async function applyStringReplacement(
+  sandbox: SandboxHandle,
+  filePath: string,
+  oldString: string,
+  newString: string,
+): Promise<ToolOutcome> {
+  const fileContent = await sandbox.readFile(filePath)
+  const firstIndex = fileContent.indexOf(oldString)
+  if (firstIndex === -1) return badInput(`editFile: oldString not found in ${filePath}`)
+  if (fileContent.indexOf(oldString, firstIndex + 1) !== -1) {
+    return badInput(`editFile: oldString appears multiple times in ${filePath}, be more specific`)
+  }
+  const updatedContent = fileContent.replace(oldString, () => newString)
+  await sandbox.writeFile(filePath, updatedContent)
+  return success(
+    `edited ${filePath}: replaced ${oldString.length} chars with ${newString.length} chars`,
+  )
+}
+
+async function spillOversizedOutput(
+  sandbox: SandboxHandle,
+  toolCallId: string,
+  fullOutput: string,
+): Promise<string> {
+  if (fullOutput.length <= TOOL_OUTPUT_SPILL_CHARS) return truncateToolOutput(fullOutput)
+  const spillPath = `${SPILL_DIRECTORY}/${toolCallId}.log`
+  try {
+    await sandbox.writeFile(spillPath, fullOutput)
+  } catch {
+    return truncateToolOutput(fullOutput)
+  }
+  const preview = truncateToolOutput(fullOutput, TOOL_OUTPUT_PREVIEW_CHARS)
+  return `${preview}\n\n[Full output (${fullOutput.length} chars) spilled to ${spillPath}. Read it with readFile offset/limit instead of guessing.]`
+}
+
+function quoteShellArgument(argument: string): string {
+  return `'${argument.replaceAll("'", `'\\''`)}'`
+}
+
+function requirePositiveInt(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined
 }
 
 function requireString(value: unknown): string | undefined {

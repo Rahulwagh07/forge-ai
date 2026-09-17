@@ -14,7 +14,7 @@ import {
 
 export class OpenAIProvider implements LLMProvider {
   private readonly client: OpenAI
-  private readonly model: string
+  readonly modelId: string
   readonly contextWindow: number
 
   constructor(opts: {
@@ -38,8 +38,8 @@ export class OpenAIProvider implements LLMProvider {
             }
           : undefined,
     })
-    this.model = opts.model ?? resolved.model
-    this.contextWindow = resolveContextWindow(this.model)
+    this.modelId = opts.model ?? resolved.model
+    this.contextWindow = resolveContextWindow(this.modelId)
   }
 
   async runStep(
@@ -52,7 +52,7 @@ export class OpenAIProvider implements LLMProvider {
       const stream = await withRetry(() =>
         this.client.chat.completions.create(
           {
-            model: this.model,
+            model: this.modelId,
             messages: messages.map(convertAgentMessage),
             tools: tools.length > 0 ? tools.map(convertToolDefinition) : undefined,
             stream: true,
@@ -72,6 +72,7 @@ export class OpenAIProvider implements LLMProvider {
           usage = {
             inputTokens: chunk.usage.prompt_tokens,
             outputTokens: chunk.usage.completion_tokens,
+            cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens,
           }
         }
         const choice = chunk.choices[0]

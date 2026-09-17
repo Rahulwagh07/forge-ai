@@ -15,6 +15,8 @@ type StopReason = 'tool_use' | 'end_turn' | 'max_tokens'
 interface ProviderUsage {
   inputTokens?: number
   outputTokens?: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
 }
 
 export interface ProviderResponse {

@@ -33,6 +33,29 @@ export async function loadResumeHistory(sessionId: string): Promise<{
   return { stepNumberOffset: maxStepNumber._max.stepNumber ?? 0, historySteps, checkpoint }
 }
 
+export function isCompactSteering(content: unknown): boolean {
+  const record = content as { message?: unknown } | null
+  const message = typeof record?.message === 'string' ? record.message : JSON.stringify(content)
+  return message.trim() === '/compact'
+}
+
+export async function claimCompactRequests(sessionId: string): Promise<number> {
+  const pendingSteering = await prisma.sessionStep.findMany({
+    where: { sessionId, type: 'STEERING', consumedAt: null },
+    orderBy: [{ stepNumber: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+  })
+  let claimedCompactRequests = 0
+  for (const step of pendingSteering) {
+    if (!isCompactSteering(step.content)) continue
+    const claim = await prisma.sessionStep.updateMany({
+      where: { id: step.id, consumedAt: null },
+      data: { consumedAt: new Date() },
+    })
+    if (claim.count > 0) claimedCompactRequests += 1
+  }
+  return claimedCompactRequests
+}
+
 export async function claimReplayedSteering(
   sessionId: string,
   historySteps: SessionStep[],
@@ -76,7 +99,7 @@ export function buildInitialMessages(
     const content = step.content as Record<string, unknown>
     if (step.type === 'STEERING') {
       // only re-deliver steering that was never fed to the model live.
-      if (!step.consumedAt) {
+      if (!step.consumedAt && !isCompactSteering(step.content)) {
         messages.push({
           role: 'user',
           content:

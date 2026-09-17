@@ -89,7 +89,7 @@ export type SessionEvent =
       totals: DiffTotals
     }
   | { type: 'branch_pushed'; branch: string }
-  | { type: 'compaction'; stepNumber?: number }
+  | { type: 'compaction'; stepNumber?: number; compacted?: boolean }
   | {
       type: 'pr_created'
       prUrl: string

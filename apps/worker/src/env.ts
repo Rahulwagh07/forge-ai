@@ -11,6 +11,8 @@ const envSchema = z
     COMPACTION_ENABLED: z.enum(['true', 'false']).catch('true'),
     COMPACTION_RESERVE_TOKENS: positiveInt(16384),
     COMPACTION_KEEP_TOKENS: positiveInt(20000),
+    COMPACTION_MODEL: z.string().min(1).optional(),
+    COMPACTION_MODEL_OVERRIDES_JSON: z.string().min(1).optional(),
     SANDBOX_REAPER_INTERVAL_MS: positiveInt(60_000),
     SANDBOX_IDLE_TIMEOUT_MS: positiveInt(5 * 60 * 1000),
     GIT_AUTHOR_NAME: z.string().optional(),

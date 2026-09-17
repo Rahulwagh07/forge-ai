@@ -1,7 +1,7 @@
 import { prisma } from 'db'
 import { env } from '../env.ts'
 import { COMPACTION_PROMPT, mergeFileOps, serializeConversation, type FileOps } from 'agent-core'
-import type { AgentMessage } from 'agent-core'
+import type { AgentMessage, ProviderResponse } from 'agent-core'
 import type { OpenAIProvider } from 'agent-core'
 import { toJsonValue } from '../runtime/events.ts'
 import { log } from '../runtime/log.ts'
@@ -15,11 +15,28 @@ interface CompactionSettings {
   keepTokens: number
 }
 
-export function loadCompactionSettings(): CompactionSettings | null {
+interface CompactionModelOverride {
+  reserveTokens?: number
+  keepTokens?: number
+}
+
+export function loadCompactionSettings(activeModel?: string): CompactionSettings | null {
   if (env.COMPACTION_ENABLED === 'false') return null
+  const modelOverrides = parseModelOverrides(env.COMPACTION_MODEL_OVERRIDES_JSON)
+  const modelOverride = activeModel ? modelOverrides[activeModel] : undefined
   return {
-    reserveTokens: env.COMPACTION_RESERVE_TOKENS,
-    keepTokens: env.COMPACTION_KEEP_TOKENS,
+    reserveTokens: modelOverride?.reserveTokens ?? env.COMPACTION_RESERVE_TOKENS,
+    keepTokens: modelOverride?.keepTokens ?? env.COMPACTION_KEEP_TOKENS,
+  }
+}
+
+function parseModelOverrides(rawJson: string | undefined): Record<string, CompactionModelOverride> {
+  if (!rawJson) return {}
+  try {
+    const parsed = JSON.parse(rawJson) as Record<string, CompactionModelOverride>
+    return typeof parsed === 'object' && parsed !== null ? parsed : {}
+  } catch {
+    return {}
   }
 }
 
@@ -87,24 +104,33 @@ function formatPathList(
 }
 
 export async function summarizeWithLLM(
-  provider: OpenAIProvider,
+  summarizerProvider: OpenAIProvider,
   messagesToSummarize: AgentMessage[],
   previousSummary: string | undefined,
   fileOps: FileOps,
-): Promise<{ summary: string; readFiles: string[]; modifiedFiles: string[] }> {
+): Promise<{
+  summary: string
+  readFiles: string[]
+  modifiedFiles: string[]
+  summaryUsage: ProviderResponse['usage']
+}> {
   const conversation = serializeConversation(messagesToSummarize)
   const prompt =
     `${COMPACTION_PROMPT}\n` +
     (previousSummary ? `## Previous Summary\n${previousSummary}\n\n` : '') +
     formatFilesForSummary(fileOps) +
     `## Conversation To Summarize\n${conversation}`
-  const response = await provider.runStep([{ role: 'user', content: prompt }], [])
-  const summary = (response.text ?? '').trim()
+  const summarizerResponse = await summarizerProvider.runStep(
+    [{ role: 'user', content: prompt }],
+    [],
+  )
+  const summary = (summarizerResponse.text ?? '').trim()
   if (!summary) throw new Error('[worker] compaction summarizer returned an empty response')
   return {
     summary,
     readFiles: fileOps.readFiles,
     modifiedFiles: fileOps.modifiedFiles,
+    summaryUsage: summarizerResponse.usage,
   }
 }
 
@@ -132,6 +158,7 @@ export async function persistCheckpoint(args: {
   summary: string
   fileOps: FileOps
   priorCumulative: FileOps
+  summaryUsage?: ProviderResponse['usage']
 }): Promise<CheckpointSummary> {
   const mergedFileOps = capStoredPaths(mergeFileOps(args.priorCumulative, args.fileOps))
   const checkpointData = {
@@ -139,6 +166,7 @@ export async function persistCheckpoint(args: {
     firstKeptStepNumber: args.absoluteStepNumber,
     readFiles: mergedFileOps.readFiles,
     modifiedFiles: mergedFileOps.modifiedFiles,
+    summaryUsage: args.summaryUsage,
   }
   await prisma.sessionStep.create({
     data: {
@@ -152,6 +180,7 @@ export async function persistCheckpoint(args: {
     sessionId: args.sessionId,
     stepNumber: args.absoluteStepNumber,
     tokensBefore: args.tokensBefore,
+    summaryUsage: args.summaryUsage,
   })
   return checkpointData
 }

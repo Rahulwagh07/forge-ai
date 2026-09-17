@@ -201,7 +201,10 @@ export function useSessionStream(
                 id: `sse-${handlers.genId()}-compaction`,
                 role: 'system',
                 kind: 'status',
-                text: 'Context compacted, continuing with summary',
+                text:
+                  data.compacted === false
+                    ? 'Nothing new to compact'
+                    : 'Context compacted, continuing with summary',
               },
             ])
             return
