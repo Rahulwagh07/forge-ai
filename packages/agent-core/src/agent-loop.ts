@@ -1,5 +1,5 @@
-import type { OutputChunk, SandboxHandle } from '@repo/sandbox'
-import type { AgentMessage, LLMProvider, ProviderResponse, ToolCall } from './harness/provider.ts'
+import type { SandboxHandle } from '@repo/sandbox'
+import type { AgentMessage, ProviderResponse, ToolCall } from './harness/provider.ts'
 import { isContextOverflowError } from './harness/provider.ts'
 import {
   MAX_CONSECUTIVE_TOOL_ERROR_BATCHES,
@@ -12,76 +12,22 @@ import {
   estimateMessagesTokens,
   tryCompactLoop,
   createCompactionState,
-  type CompactionOptions,
   type LoopCompactionState,
 } from './harness/compaction/index.ts'
 import { SYSTEM_PROMPT } from './harness/prompts/system.ts'
+import type { LoopResult, RunLoopOptions } from './types/agent-loop-types.ts'
 
-export interface LoopStepEvent {
-  stepNumber: number
-  text?: string
-  toolCalls?: ToolCall[]
-  durationMs?: number
-  stepUsage?: ProviderResponse['usage']
-}
-
-export interface LoopToolResultEvent {
-  stepNumber: number
-  toolCallId: string
-  toolName: string
-  input: Record<string, unknown>
-  output: string
-  isError: boolean
-  durationMs?: number
-}
-
-export interface LoopToolOutputEvent extends OutputChunk {
-  stepNumber: number
-  toolCallId: string
-  toolName: string
-}
-
-export interface LoopResult {
-  steps: number
-  stoppedBy:
-    | 'finish_session'
-    | 'no_tool_calls'
-    | 'max_steps'
-    | 'timeout'
-    | 'token_budget'
-    | 'max_tokens'
-    | 'consecutive_errors'
-    | 'aborted'
-  finalText?: string
-  approxTokens?: number
-  compactions?: number
-  totalUsage: NonNullable<ProviderResponse['usage']>
-  toolCallCounts: Record<string, number>
-}
-
-export interface LoopContextSnapshot {
-  stepNumber: number
-}
-
-export interface RunLoopOptions {
-  provider: LLMProvider
-  sandbox: SandboxHandle
-  userPrompt: string
-  systemPrompt?: string
-  maxSteps: number
-  maxWallClockMs?: number
-  maxInputTokens?: number
-  readOnly?: boolean
-  onStep?: (event: LoopStepEvent) => void | Promise<void>
-  onToken?: (event: { stepNumber: number; delta: string }) => void
-  onToolOutput?: (event: LoopToolOutputEvent) => void
-  onToolResult?: (event: LoopToolResultEvent) => void | Promise<void>
-  getSteeringMessages?: () => string[] | Promise<string[]>
-  initialMessages?: AgentMessage[]
-  onContext?: (snapshot: LoopContextSnapshot) => void
-  compaction?: CompactionOptions
-  signal?: AbortSignal
-}
+export type {
+  AfterToolCallResult,
+  BeforeCompactArgs,
+  BeforeToolCallResult,
+  LoopContextSnapshot,
+  LoopResult,
+  LoopStepEvent,
+  LoopToolOutputEvent,
+  LoopToolResultEvent,
+  RunLoopOptions,
+} from './types/agent-loop-types.ts'
 
 async function executeStepTools(args: {
   sandbox: SandboxHandle
@@ -92,6 +38,8 @@ async function executeStepTools(args: {
   onToolOutput?: RunLoopOptions['onToolOutput']
   onToolResult?: RunLoopOptions['onToolResult']
   signal?: AbortSignal
+  beforeToolCall?: RunLoopOptions['beforeToolCall']
+  afterToolCall?: RunLoopOptions['afterToolCall']
 }): Promise<{ finished: boolean; finalText?: string; allToolCallsFailed: boolean }> {
   let finished = false
   let finalText: string | undefined
@@ -103,12 +51,29 @@ async function executeStepTools(args: {
       finalText = outcome.finalText
     }
   }
+  const guardedCall = async (
+    call: ToolCall,
+  ): Promise<{ output: string; isError: boolean; durationMs: number }> => {
+    const guard = await args.beforeToolCall?.(call)
+    const effectiveCall = guard?.input ? { ...call, input: guard.input } : call
+    if (guard?.blocked) return { output: guard.blocked, isError: true, durationMs: 0 }
+    const result = await runSingleToolCall(args, effectiveCall)
+    const filtered = await args.afterToolCall?.({
+      call: effectiveCall,
+      output: result.output,
+      isError: result.isError,
+    })
+    if (!filtered) return result
+    return {
+      ...result,
+      output: filtered.output ?? result.output,
+      isError: filtered.isError ?? result.isError,
+    }
+  }
   const runParallelCalls = async () => {
     const batchCalls = parallelCalls
     parallelCalls = []
-    const batchOutcomes = await Promise.all(
-      batchCalls.map((batchCall) => runSingleToolCall(args, batchCall)),
-    )
+    const batchOutcomes = await Promise.all(batchCalls.map((batchCall) => guardedCall(batchCall)))
     for (let batchIndex = 0; batchIndex < batchCalls.length; batchIndex++) {
       const batchCall = batchCalls[batchIndex]!
       const batchOutcome = batchOutcomes[batchIndex]!
@@ -124,7 +89,7 @@ async function executeStepTools(args: {
     }
     await runParallelCalls()
     if (args.signal?.aborted) break
-    const outcome = await runSingleToolCall(args, call)
+    const outcome = await guardedCall(call)
     if (!outcome.isError) allToolCallsFailed = false
     markFinished(await appendToolOutcome(args, call, outcome))
   }
@@ -229,8 +194,25 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
   const compactionState: LoopCompactionState = createCompactionState()
   const compaction = opts.compaction && {
     contextWindow: provider.contextWindow,
+    consumeForceCompact: () => false,
     ...opts.compaction,
   }
+  const runCompaction = async (force: boolean, exactTokens?: number): Promise<boolean> => {
+    if (opts.beforeCompact) {
+      const handled = await opts.beforeCompact({
+        messages,
+        state: compactionState,
+        stepNumber,
+        force,
+        exactTokens,
+      })
+      if (typeof handled === 'boolean') return handled
+    }
+    if (!compaction) return false
+    return tryCompactLoop(messages, compaction, compactionState, stepNumber, force, exactTokens)
+  }
+  const forceCompaction = (exactTokens?: number) => runCompaction(true, exactTokens)
+  const compactIfNeeded = (exactTokens?: number) => runCompaction(false, exactTokens)
 
   while (stepNumber < maxSteps) {
     if (opts.signal?.aborted) {
@@ -257,9 +239,11 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
 
     opts.onContext?.({ stepNumber })
 
-    if (compaction?.consumeForceCompact?.()) {
-      await tryCompactLoop(messages, compaction, compactionState, stepNumber, true)
+    if (compaction?.consumeForceCompact()) {
+      await forceCompaction()
     }
+
+    await opts.transformContext?.(messages, { stepNumber })
 
     const stepStartedAt = Date.now()
     const emitToken = (delta: string) => opts.onToken?.({ stepNumber, delta })
@@ -272,10 +256,7 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
         break
       }
       // Overflow recovery: one retry, then fail
-      const recovered =
-        compaction &&
-        isContextOverflowError(err) &&
-        (await tryCompactLoop(messages, compaction, compactionState, stepNumber, true))
+      const recovered = isContextOverflowError(err) && (await forceCompaction())
       if (!recovered) throw err
       response = await provider.runStep(messages, TOOL_DEFINITIONS, emitToken, opts.signal)
     }
@@ -287,16 +268,9 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
       stoppedBy = 'token_budget'
       break
     }
-    if (response.stopReason === 'max_tokens' && compaction) {
+    if (response.stopReason === 'max_tokens') {
       // truncated output is unusable: compact and retry the step instead of stopping
-      const recovered = await tryCompactLoop(
-        messages,
-        compaction,
-        compactionState,
-        stepNumber,
-        true,
-        lastPromptTokens,
-      )
+      const recovered = await forceCompaction(lastPromptTokens)
       if (recovered) continue
     }
     if (response.stopReason === 'max_tokens') {
@@ -346,6 +320,8 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
       onToolOutput: opts.onToolOutput,
       onToolResult: opts.onToolResult,
       signal: opts.signal,
+      beforeToolCall: opts.beforeToolCall,
+      afterToolCall: opts.afterToolCall,
     })
     if (finished) {
       stoppedBy = 'finish_session'
@@ -373,16 +349,7 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
       stoppedBy = 'consecutive_errors'
       break
     }
-    if (compaction) {
-      await tryCompactLoop(
-        messages,
-        compaction,
-        compactionState,
-        stepNumber,
-        false,
-        lastPromptTokens,
-      )
-    }
+    await compactIfNeeded(lastPromptTokens)
 
     if (stoppedBy === 'finish_session') break
   }

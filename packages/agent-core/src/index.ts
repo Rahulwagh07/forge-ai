@@ -8,6 +8,9 @@ export { createCompactionState, tryCompactLoop } from './harness/compaction/inde
 export { truncateToolOutput } from './harness/tools/executor.ts'
 export type { CompactionOptions, LoopCompactionState } from './harness/compaction/index.ts'
 export type {
+  AfterToolCallResult,
+  BeforeCompactArgs,
+  BeforeToolCallResult,
   LoopContextSnapshot,
   LoopResult,
   LoopStepEvent,
