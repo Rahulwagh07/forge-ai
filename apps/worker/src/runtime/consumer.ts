@@ -13,6 +13,7 @@ export class Consumer {
   private running = false
   // sessions this process is actively running
   private readonly activeSessions = new Set<string>()
+  private readonly activeProcesses = new Set<Promise<void>>()
 
   constructor(name = env.WORKER_NAME) {
     this.name = name
@@ -32,7 +33,7 @@ export class Consumer {
           UPDATE "Session" s
           SET "status" = 'QUEUED', "lastActiveAt" = now()
           WHERE s."status" = 'RUNNING'
-            AND s."lastActiveAt" < now() - (${String(STALE_SESSION_SECONDS)} || ' seconds')::interval
+            AND s."lastActiveAt" < now() - make_interval(secs => ${STALE_SESSION_SECONDS})
           RETURNING s."id"`
         for (const row of rows) {
           log.info('reclaimed stale session', { sessionId: row.id })
@@ -65,6 +66,7 @@ export class Consumer {
           )
           RETURNING s."id",
             (SELECT COALESCE(MAX("stepNumber"), 0) FROM "SessionStep" st WHERE st."sessionId" = s."id") AS "watermark"`
+        if (!this.running) break
         const sessionId = rows[0]?.id
         if (!sessionId) {
           await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
@@ -72,7 +74,9 @@ export class Consumer {
         }
         log.info('claimed session', { sessionId })
         this.activeSessions.add(sessionId)
-        void this.process(sessionId, rows[0]?.watermark ?? 0)
+        const processing = this.process(sessionId, rows[0]?.watermark ?? 0)
+        this.activeProcesses.add(processing)
+        void processing.finally(() => this.activeProcesses.delete(processing))
       } catch (err) {
         log.error('error claiming session', {
           error: err instanceof Error ? err.message : String(err),
@@ -103,5 +107,6 @@ export class Consumer {
 
   async close(): Promise<void> {
     this.stop()
+    await Promise.all(this.activeProcesses)
   }
 }

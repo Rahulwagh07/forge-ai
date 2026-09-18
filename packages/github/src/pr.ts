@@ -1,5 +1,5 @@
 import type { Octokit } from 'octokit'
-import type { RepoRef } from './app-auth.ts'
+import type { RepoRef } from './repo-ref.ts'
 
 export async function findOrCreatePr(
   octokit: Octokit,

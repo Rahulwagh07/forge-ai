@@ -13,7 +13,7 @@ const envSchema = z.object({
   GITHUB_APP_ID: z.string().min(1),
   GITHUB_APP_PRIVATE_KEY: z.string().min(1),
   GITHUB_WEBHOOK_SECRET: z.string().min(1),
-  GITHUB_APP_SLUG: z.string().min(1).optional(),
+  GITHUB_APP_SLUG: z.string().min(1).catch('forge-ai-swe'),
 })
 
 export const env = envSchema.parse(process.env)

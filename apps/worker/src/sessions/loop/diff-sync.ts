@@ -6,11 +6,11 @@ import { publishEvent } from '../../runtime/events.ts'
 export async function syncDiffAfterTool(
   sandbox: SandboxHandle,
   sessionId: string,
-  defaultBranch: string,
+  baseBranch: string,
   fetchBase: boolean,
   authUrl: string,
 ): Promise<void> {
-  const snapshot = await getSessionDiffSnapshot(sandbox, defaultBranch, fetchBase, authUrl)
+  const snapshot = await getSessionDiffSnapshot(sandbox, baseBranch, fetchBase, authUrl)
   const currentPaths = new Set(snapshot.files.map((file) => file.path))
   const existing = await prisma.sessionDiffFile.findMany({
     where: { sessionId },
@@ -20,7 +20,7 @@ export async function syncDiffAfterTool(
   const changed = snapshot.files.filter(
     (file) => existingByPath.get(file.path)?.patch !== file.patch,
   )
-  const contents = await getFileContents(sandbox, defaultBranch, changed)
+  const contents = await getFileContents(sandbox, baseBranch, changed)
   const tooLargeByPath = new Map<string, boolean>()
   for (const file of snapshot.files) {
     tooLargeByPath.set(

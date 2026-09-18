@@ -1,10 +1,11 @@
 import { prisma } from '@repo/db'
 import type { SessionStep } from '@repo/db'
-import { ASK_SYSTEM_PROMPT, SYSTEM_PROMPT, truncateToolOutput } from '@repo/agent-core'
+import { SYSTEM_PROMPT, truncateToolOutput } from '@repo/agent-core'
 import type { AgentMessage, ToolCall } from '@repo/agent-core'
+import { RESUME_HISTORY_LIMIT, RESUME_TOOL_OUTPUT_CHARS } from '../../constants.ts'
 import { log } from '../../runtime/log.ts'
 import { loadLatestCheckpoint, summaryMessage, type CheckpointSummary } from '../compaction.ts'
-import { RESUME_HISTORY_LIMIT, RESUME_TOOL_OUTPUT_CHARS } from './types.ts'
+import { isCompactSteering } from './steering.ts'
 
 export async function loadResumeHistory(sessionId: string): Promise<{
   stepNumberOffset: number
@@ -33,29 +34,6 @@ export async function loadResumeHistory(sessionId: string): Promise<{
   return { stepNumberOffset: maxStepNumber._max.stepNumber ?? 0, historySteps, checkpoint }
 }
 
-export function isCompactSteering(content: unknown): boolean {
-  const record = content as { message?: unknown } | null
-  const message = typeof record?.message === 'string' ? record.message : JSON.stringify(content)
-  return message.trim() === '/compact'
-}
-
-export async function claimCompactRequests(sessionId: string): Promise<number> {
-  const pendingSteering = await prisma.sessionStep.findMany({
-    where: { sessionId, type: 'STEERING', consumedAt: null },
-    orderBy: [{ stepNumber: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
-  })
-  let claimedCompactRequests = 0
-  for (const step of pendingSteering) {
-    if (!isCompactSteering(step.content)) continue
-    const claim = await prisma.sessionStep.updateMany({
-      where: { id: step.id, consumedAt: null },
-      data: { consumedAt: new Date() },
-    })
-    if (claim.count > 0) claimedCompactRequests += 1
-  }
-  return claimedCompactRequests
-}
-
 export async function claimReplayedSteering(
   sessionId: string,
   historySteps: SessionStep[],
@@ -79,13 +57,12 @@ export async function claimReplayedSteering(
 
 export function buildInitialMessages(
   prompt: string,
-  isAsk: boolean,
+  systemPrompt: string | undefined,
   historySteps: SessionStep[],
   checkpoint: CheckpointSummary | null = null,
 ): AgentMessage[] {
-  const systemPrompt = isAsk ? ASK_SYSTEM_PROMPT : SYSTEM_PROMPT
   const messages: AgentMessage[] = [
-    { role: 'system', content: systemPrompt },
+    { role: 'system', content: systemPrompt ?? SYSTEM_PROMPT },
     { role: 'user', content: prompt },
   ]
   if (checkpoint) messages.push(summaryMessage(checkpoint))

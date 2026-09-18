@@ -6,42 +6,29 @@ import {
   serializeConversation,
   type FileOps,
 } from '@repo/agent-core'
-import type { AgentMessage, ProviderResponse } from '@repo/agent-core'
-import type { OpenAIProvider } from '@repo/agent-core'
-import { toJsonValue } from '../runtime/events.ts'
+import type { AgentMessage, LLMProvider, ProviderResponse } from '@repo/agent-core'
+import { publishEvent, toJsonValue } from '../runtime/events.ts'
 import { log } from '../runtime/log.ts'
 
 const RESUMED_FILES_SHOWN = 20
 const SUMMARIZER_PATHS_SHOWN = 200
 const STORED_PATHS_KEPT = 1000
 
-interface CompactionSettings {
+export interface CompactionSettings {
   reserveTokens: number
   keepTokens: number
 }
 
-interface CompactionModelOverride {
-  reserveTokens?: number
-  keepTokens?: number
+export interface CompactionTracker {
+  previousSummary: string | undefined
+  cumulativeFileOps: FileOps
 }
 
-export function loadCompactionSettings(activeModel?: string): CompactionSettings | null {
+export function loadCompactionSettings(): CompactionSettings | null {
   if (env.COMPACTION_ENABLED === 'false') return null
-  const modelOverrides = parseModelOverrides(env.COMPACTION_MODEL_OVERRIDES_JSON)
-  const modelOverride = activeModel ? modelOverrides[activeModel] : undefined
   return {
-    reserveTokens: modelOverride?.reserveTokens ?? env.COMPACTION_RESERVE_TOKENS,
-    keepTokens: modelOverride?.keepTokens ?? env.COMPACTION_KEEP_TOKENS,
-  }
-}
-
-function parseModelOverrides(rawJson: string | undefined): Record<string, CompactionModelOverride> {
-  if (!rawJson) return {}
-  try {
-    const parsed = JSON.parse(rawJson) as Record<string, CompactionModelOverride>
-    return typeof parsed === 'object' && parsed !== null ? parsed : {}
-  } catch {
-    return {}
+    reserveTokens: env.COMPACTION_RESERVE_TOKENS,
+    keepTokens: env.COMPACTION_KEEP_TOKENS,
   }
 }
 
@@ -108,8 +95,8 @@ function formatPathList(
   return wrap ? `<${wrap.tag}>\n${body}\n</${wrap.tag}>` : body
 }
 
-export async function summarizeWithLLM(
-  summarizerProvider: OpenAIProvider,
+async function summarizeWithLLM(
+  provider: LLMProvider,
   messagesToSummarize: AgentMessage[],
   previousSummary: string | undefined,
   fileOps: FileOps,
@@ -125,17 +112,14 @@ export async function summarizeWithLLM(
     (previousSummary ? `## Previous Summary\n${previousSummary}\n\n` : '') +
     formatFilesForSummary(fileOps) +
     `## Conversation To Summarize\n${conversation}`
-  const summarizerResponse = await summarizerProvider.runStep(
-    [{ role: 'user', content: prompt }],
-    [],
-  )
-  const summary = (summarizerResponse.text ?? '').trim()
+  const summaryResponse = await provider.runStep([{ role: 'user', content: prompt }], [])
+  const summary = (summaryResponse.text ?? '').trim()
   if (!summary) throw new Error('[worker] compaction summarizer returned an empty response')
   return {
     summary,
     readFiles: fileOps.readFiles,
     modifiedFiles: fileOps.modifiedFiles,
-    summaryUsage: summarizerResponse.usage,
+    summaryUsage: summaryResponse.usage,
   }
 }
 
@@ -156,7 +140,7 @@ function capStoredPaths(fileOps: FileOps): FileOps {
   }
 }
 
-export async function persistCheckpoint(args: {
+async function persistCheckpoint(args: {
   sessionId: string
   absoluteStepNumber: number
   tokensBefore: number
@@ -188,4 +172,66 @@ export async function persistCheckpoint(args: {
     summaryUsage: args.summaryUsage,
   })
   return checkpointData
+}
+
+export async function summarizeAndCheckpoint(
+  sessionId: string,
+  provider: LLMProvider,
+  tracker: CompactionTracker,
+  request: {
+    absoluteStepNumber: number
+    tokensBefore: number
+    messagesToSummarize: AgentMessage[]
+    previousSummary?: string
+    fileOps: FileOps
+  },
+): Promise<{
+  summary: string
+  readFiles: string[]
+  modifiedFiles: string[]
+  summaryUsage: ProviderResponse['usage']
+}> {
+  const { summary, readFiles, modifiedFiles, summaryUsage } = await summarizeWithLLM(
+    provider,
+    request.messagesToSummarize,
+    request.previousSummary ?? tracker.previousSummary,
+    request.fileOps,
+  )
+  const savedCheckpoint = await persistCheckpoint({
+    sessionId,
+    absoluteStepNumber: request.absoluteStepNumber,
+    tokensBefore: request.tokensBefore,
+    summary,
+    fileOps: { readFiles, modifiedFiles },
+    priorCumulative: tracker.cumulativeFileOps,
+    summaryUsage,
+  })
+  tracker.previousSummary = savedCheckpoint.summary
+  tracker.cumulativeFileOps = {
+    readFiles: savedCheckpoint.readFiles,
+    modifiedFiles: savedCheckpoint.modifiedFiles,
+  }
+  publishEvent(sessionId, { type: 'compaction', stepNumber: request.absoluteStepNumber }).catch(
+    (error) =>
+      log.warn('failed to publish compaction', {
+        sessionId,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+  )
+  publishEvent(sessionId, {
+    type: 'compaction_usage',
+    stepNumber: request.absoluteStepNumber,
+    summaryUsage,
+  }).catch((error) =>
+    log.warn('failed to publish compaction usage', {
+      sessionId,
+      error: error instanceof Error ? error.message : String(error),
+    }),
+  )
+  return {
+    summary: savedCheckpoint.summary,
+    readFiles: savedCheckpoint.readFiles,
+    modifiedFiles: savedCheckpoint.modifiedFiles,
+    summaryUsage,
+  }
 }

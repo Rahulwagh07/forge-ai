@@ -3,6 +3,7 @@ import { getSandboxProvider } from '@repo/sandbox'
 import { env } from '../env.ts'
 import type { SandboxHandle, SandboxProvider } from '@repo/sandbox'
 import { log } from '../runtime/log.ts'
+import { GIT_IDENTITY } from '../constants.ts'
 
 const sandboxProvider: SandboxProvider = getSandboxProvider()
 
@@ -116,8 +117,8 @@ async function markSessionPaused(sessionId: string): Promise<void> {
 
 interface AcquireSandboxOptions {
   sessionId: string
-  isAsk: boolean
-  isResume: boolean
+  askMode: boolean
+  resumeMode: boolean
   repoCloneUrl: string
   branchName: string
   baseBranch?: string | null
@@ -127,7 +128,7 @@ interface AcquireSandboxOptions {
 export async function acquireSandbox(
   opts: AcquireSandboxOptions,
 ): Promise<{ sandbox: SandboxHandle; managed: ManagedSandbox }> {
-  const { sessionId, isAsk, isResume, repoCloneUrl, branchName, baseBranch } = opts
+  const { sessionId, askMode, resumeMode, repoCloneUrl, branchName, baseBranch } = opts
 
   const existing = managedSandboxes.get(sessionId)
   if (existing) {
@@ -136,14 +137,14 @@ export async function acquireSandbox(
     return { sandbox: existing.sandbox, managed: existing }
   }
 
-  log.info('creating sandbox', { sessionId, isAsk, isResume, branchName, baseBranch })
+  log.info('creating sandbox', { sessionId, askMode, resumeMode, branchName, baseBranch })
   const sandbox = await sandboxProvider.create({
     repoCloneUrl,
-    ...(isAsk
+    ...(askMode
       ? baseBranch
         ? { branch: baseBranch }
         : {}
-      : isResume
+      : resumeMode
         ? { branch: branchName }
         : {
             ...(baseBranch ? { branch: baseBranch } : {}),
@@ -164,11 +165,9 @@ export async function acquireSandbox(
 function sandboxGitEnv(gitToken: string): Record<string, string> {
   return {
     FORGE_GIT_TOKEN: gitToken,
-    GIT_AUTHOR_NAME: env.GIT_AUTHOR_NAME ?? env.SANDBOX_GIT_NAME ?? 'forge-agent',
-    GIT_AUTHOR_EMAIL:
-      env.GIT_AUTHOR_EMAIL ?? env.SANDBOX_GIT_EMAIL ?? 'forge-agent@users.noreply.github.com',
-    GIT_COMMITTER_NAME: env.GIT_COMMITTER_NAME ?? env.SANDBOX_GIT_NAME ?? 'forge-agent',
-    GIT_COMMITTER_EMAIL:
-      env.GIT_COMMITTER_EMAIL ?? env.SANDBOX_GIT_EMAIL ?? 'forge-agent@users.noreply.github.com',
+    GIT_AUTHOR_NAME: GIT_IDENTITY.name,
+    GIT_AUTHOR_EMAIL: GIT_IDENTITY.email,
+    GIT_COMMITTER_NAME: GIT_IDENTITY.name,
+    GIT_COMMITTER_EMAIL: GIT_IDENTITY.email,
   }
 }

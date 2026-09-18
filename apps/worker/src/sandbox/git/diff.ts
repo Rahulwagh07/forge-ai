@@ -38,14 +38,14 @@ interface FileContentResult {
 
 export async function getSessionDiffSnapshot(
   sandbox: SandboxHandle,
-  defaultBranch: string,
+  baseBranch: string,
   fetchBase: boolean,
   authUrl: string,
 ): Promise<SessionDiffSnapshot> {
-  const base = shellQuote(`origin/${defaultBranch}`)
+  const base = shellQuote(`origin/${baseBranch}`)
   const result = await runInRepo(
     sandbox,
-    `${fetchBaseAndStageUntracked(defaultBranch, fetchBase, authUrl)}echo '===FORGE-NAMESTATUS==='; git diff --name-status -z ${base} --; echo '===FORGE-NUMSTAT==='; git diff --numstat -z ${base} --; echo '===FORGE-UNIFIED==='; git diff --no-ext-diff --unified=3 ${base} --`,
+    `${fetchBaseAndStageUntracked(baseBranch, fetchBase, authUrl)}echo '===FORGE-NAMESTATUS==='; git diff --name-status -z ${base} --; echo '===FORGE-NUMSTAT==='; git diff --numstat -z ${base} --; echo '===FORGE-UNIFIED==='; git diff --no-ext-diff --unified=3 ${base} --`,
     { timeoutMs: 30_000 },
   )
   if (result.exitCode !== 0) {
@@ -114,13 +114,13 @@ export async function getSessionDiffSnapshot(
 
 export async function getFileContents(
   sandbox: SandboxHandle,
-  defaultBranch: string,
+  baseBranch: string,
   files: SessionDiffFileRecord[],
 ): Promise<Map<string, FileContentResult>> {
   const results = new Map<string, FileContentResult>()
   const targets = files.filter((file) => !file.binary)
   if (targets.length === 0) return results
-  const base = `origin/${defaultBranch}`
+  const base = `origin/${baseBranch}`
   const commands: string[] = []
   targets.forEach((file, index) => {
     if (file.status !== 'created') {
@@ -171,13 +171,13 @@ export async function getFileContents(
 
 export async function getChangeStats(
   sandbox: SandboxHandle,
-  defaultBranch: string,
+  baseBranch: string,
   fetchBase: boolean,
   authUrl: string,
 ): Promise<{ files: number; additions: number; deletions: number } | null> {
   const result = await runInRepo(
     sandbox,
-    `${fetchBaseAndStageUntracked(defaultBranch, fetchBase, authUrl)}git diff --numstat ${shellQuote(`origin/${defaultBranch}`)} --`,
+    `${fetchBaseAndStageUntracked(baseBranch, fetchBase, authUrl)}git diff --numstat ${shellQuote(`origin/${baseBranch}`)} --`,
     { timeoutMs: 30_000 },
   )
   if (result.exitCode !== 0) return null

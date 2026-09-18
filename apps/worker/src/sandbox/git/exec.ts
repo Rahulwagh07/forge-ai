@@ -15,12 +15,12 @@ export async function runInRepo(
 }
 
 export function fetchBaseAndStageUntracked(
-  defaultBranch: string,
+  baseBranch: string,
   fetchBase: boolean,
   authUrl: string,
 ): string {
   const fetch = fetchBase
-    ? `git fetch ${shellQuote(authUrl)} ${shellQuote(`${defaultBranch}:refs/remotes/origin/${defaultBranch}`)} --quiet >/dev/null 2>&1 || true; `
+    ? `git fetch ${shellQuote(authUrl)} ${shellQuote(`${baseBranch}:refs/remotes/origin/${baseBranch}`)} --quiet >/dev/null 2>&1 || true; `
     : ''
-  return `${fetch}git ls-files --others --exclude-standard -z | xargs -0 -r git add -N --; `
+  return `${fetch}git ls-files -z --others --exclude-standard -- . ':(exclude).forge/tool-output' ':(exclude).forge-tool-output' | xargs -0 -r git add -N --; `
 }

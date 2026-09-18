@@ -1,5 +1,5 @@
 const tokens = new Map<string, string>()
-const BASIC_AUTH_PATTERN = /x-access-token:[^@\s]+@/g
+const AUTH_URL_PATTERN = /(\b[a-z][a-z0-9+.-]*:\/\/[^/\s:@]+:)[^@\s]+@/gi
 
 export function setSessionToken(sessionId: string, token: string): void {
   tokens.set(sessionId, token)
@@ -18,8 +18,9 @@ export function redactFor(sessionId: string, value: unknown): unknown {
 function redactValue(value: unknown, activeToken: string): unknown {
   if (typeof value === 'string') {
     const withoutToken = value.includes(activeToken) ? value.split(activeToken).join('***') : value
-    return withoutToken.replace(BASIC_AUTH_PATTERN, 'x-access-token:***@')
+    return withoutToken.replace(AUTH_URL_PATTERN, '$1***@')
   }
+  if (value instanceof Date) return value
   if (Array.isArray(value)) return value.map((v) => redactValue(v, activeToken))
   if (value && typeof value === 'object') {
     return Object.fromEntries(

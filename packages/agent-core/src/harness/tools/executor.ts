@@ -7,11 +7,11 @@ import {
   READ_DEFAULT_MAX_BYTES,
   READ_DEFAULT_MAX_LINES,
   TOOL_OUTPUT_PREVIEW_CHARS,
-  TOOL_OUTPUT_SPILL_CHARS,
+  TOOL_OUTPUT_OVERFLOW_CHARS,
 } from '../../constants.ts'
 
 const REPO_ROOT = '/workspace/repo'
-const SPILL_DIRECTORY = '/tmp/devin-tool-output'
+const TOOL_OUTPUT_DIRECTORY = `${REPO_ROOT}/.forge/tool-output`
 
 interface ToolOutcome {
   output: string
@@ -87,7 +87,8 @@ async function invokeToolCall(
         return success('no matches')
       }
       const combinedOutput = [searchResult.stdout, searchResult.stderr].filter(Boolean).join('\n')
-      return success(await spillOversizedOutput(sandbox, call.id, combinedOutput))
+      if (searchResult.exitCode !== 0) return badInput(combinedOutput || 'grep failed')
+      return success(await saveOverflowOutput(sandbox, call.id, combinedOutput))
     }
 
     case 'find': {
@@ -100,9 +101,12 @@ async function invokeToolCall(
         `find ${quoteShellArgument(searchPath)} -name ${quoteShellArgument(pattern)} | head -n 100`,
         { signal: options.signal },
       )
+      if (searchResult.exitCode !== 0) {
+        return badInput(searchResult.stderr || 'find failed')
+      }
       const matchedPaths = searchResult.stdout.trim()
       if (!matchedPaths) return success('no matches')
-      return success(await spillOversizedOutput(sandbox, call.id, matchedPaths))
+      return success(await saveOverflowOutput(sandbox, call.id, matchedPaths))
     }
 
     case 'writeFile': {
@@ -151,7 +155,7 @@ async function invokeToolCall(
       ]
         .filter(Boolean)
         .join('\n')
-      return success(await spillOversizedOutput(sandbox, call.id, combinedOutput))
+      return success(await saveOverflowOutput(sandbox, call.id, combinedOutput))
     }
 
     case 'commitAndOpenPR':
@@ -173,7 +177,7 @@ async function commitAndOpenPR(sandbox: SandboxHandle, call: ToolCall): Promise<
 
   const quoted = commitMessage.replaceAll("'", `'\\''`)
   const result = await sandbox.runCommand(
-    `git add -A && git diff --cached --quiet || git commit -m '${quoted}'`,
+    `git reset -q -- .forge/tool-output .forge-tool-output 2>/dev/null || true; git add -A -- . ':!.forge/PLAN.md' ':!.forge/TODO.md' ':!.forge/tool-output' ':!.forge-tool-output' && { git diff --cached --quiet || git commit -m '${quoted}'; }`,
     {},
   )
   if (result.exitCode !== 0) {
@@ -256,20 +260,21 @@ async function applyStringReplacement(
   )
 }
 
-async function spillOversizedOutput(
+async function saveOverflowOutput(
   sandbox: SandboxHandle,
   toolCallId: string,
   fullOutput: string,
 ): Promise<string> {
-  if (fullOutput.length <= TOOL_OUTPUT_SPILL_CHARS) return truncateToolOutput(fullOutput)
-  const spillPath = `${SPILL_DIRECTORY}/${toolCallId}.log`
+  if (fullOutput.length <= TOOL_OUTPUT_OVERFLOW_CHARS) return truncateToolOutput(fullOutput)
+  const safeToolCallId = encodeURIComponent(toolCallId || 'unknown')
+  const overflowPath = `${TOOL_OUTPUT_DIRECTORY}/${safeToolCallId}.log`
   try {
-    await sandbox.writeFile(spillPath, fullOutput)
+    await sandbox.writeFile(overflowPath, fullOutput)
   } catch {
     return truncateToolOutput(fullOutput)
   }
   const preview = truncateToolOutput(fullOutput, TOOL_OUTPUT_PREVIEW_CHARS)
-  return `${preview}\n\n[Full output (${fullOutput.length} chars) spilled to ${spillPath}. Read it with readFile offset/limit instead of guessing.]`
+  return `${preview}\n\n[Full output (${fullOutput.length} chars) saved to ${overflowPath}. Read it with readFile offset/limit instead of guessing.]`
 }
 
 function quoteShellArgument(argument: string): string {

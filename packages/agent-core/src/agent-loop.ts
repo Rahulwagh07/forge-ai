@@ -1,7 +1,12 @@
 import type { OutputChunk, SandboxHandle } from '@repo/sandbox'
 import type { AgentMessage, LLMProvider, ProviderResponse, ToolCall } from './harness/provider.ts'
 import { isContextOverflowError } from './harness/provider.ts'
-import { STEERING_MESSAGE_CHARS } from './constants.ts'
+import {
+  MAX_CONSECUTIVE_TOOL_ERROR_BATCHES,
+  MAX_REPEATED_TOOL_BATCH,
+  REPEATED_TOOL_BATCH_NUDGE,
+  STEERING_MESSAGE_CHARS,
+} from './constants.ts'
 import { TOOL_DEFINITIONS, executeToolCall } from './harness/tools/index.ts'
 import {
   estimateMessagesTokens,
@@ -12,7 +17,7 @@ import {
 } from './harness/compaction/index.ts'
 import { SYSTEM_PROMPT } from './harness/prompts/system.ts'
 
-interface LoopStepEvent {
+export interface LoopStepEvent {
   stepNumber: number
   text?: string
   toolCalls?: ToolCall[]
@@ -20,7 +25,7 @@ interface LoopStepEvent {
   stepUsage?: ProviderResponse['usage']
 }
 
-interface LoopToolResultEvent {
+export interface LoopToolResultEvent {
   stepNumber: number
   toolCallId: string
   toolName: string
@@ -30,7 +35,7 @@ interface LoopToolResultEvent {
   durationMs?: number
 }
 
-interface LoopToolOutputEvent extends OutputChunk {
+export interface LoopToolOutputEvent extends OutputChunk {
   stepNumber: number
   toolCallId: string
   toolName: string
@@ -38,7 +43,15 @@ interface LoopToolOutputEvent extends OutputChunk {
 
 export interface LoopResult {
   steps: number
-  stoppedBy: 'finish_session' | 'no_tool_calls' | 'max_steps' | 'timeout' | 'aborted'
+  stoppedBy:
+    | 'finish_session'
+    | 'no_tool_calls'
+    | 'max_steps'
+    | 'timeout'
+    | 'token_budget'
+    | 'max_tokens'
+    | 'consecutive_errors'
+    | 'aborted'
   finalText?: string
   approxTokens?: number
   compactions?: number
@@ -46,9 +59,8 @@ export interface LoopResult {
   toolCallCounts: Record<string, number>
 }
 
-interface ContextSnapshot {
+export interface LoopContextSnapshot {
   stepNumber: number
-  approxTokens: number
 }
 
 export interface RunLoopOptions {
@@ -58,6 +70,7 @@ export interface RunLoopOptions {
   systemPrompt?: string
   maxSteps: number
   maxWallClockMs?: number
+  maxInputTokens?: number
   readOnly?: boolean
   onStep?: (event: LoopStepEvent) => void | Promise<void>
   onToken?: (event: { stepNumber: number; delta: string }) => void
@@ -65,7 +78,7 @@ export interface RunLoopOptions {
   onToolResult?: (event: LoopToolResultEvent) => void | Promise<void>
   getSteeringMessages?: () => string[] | Promise<string[]>
   initialMessages?: AgentMessage[]
-  onContext?: (snapshot: ContextSnapshot) => void
+  onContext?: (snapshot: LoopContextSnapshot) => void
   compaction?: CompactionOptions
   signal?: AbortSignal
 }
@@ -79,47 +92,104 @@ async function executeStepTools(args: {
   onToolOutput?: RunLoopOptions['onToolOutput']
   onToolResult?: RunLoopOptions['onToolResult']
   signal?: AbortSignal
-}): Promise<{ finished: boolean; finalText?: string }> {
+}): Promise<{ finished: boolean; finalText?: string; allToolCallsFailed: boolean }> {
   let finished = false
   let finalText: string | undefined
-  for (const call of args.calls) {
-    if (args.signal?.aborted) break
-    const toolStartedAt = Date.now()
-    const outcome = await executeToolCall(args.sandbox, call, {
-      readOnly: args.readOnly,
-      signal: args.signal,
-      onOutput: (chunk) => {
-        args.onToolOutput?.({
-          ...chunk,
-          stepNumber: args.stepNumber,
-          toolCallId: call.id,
-          toolName: call.name,
-        })
-      },
-    })
-    args.messages.push({
-      role: 'tool_result',
-      toolCallId: call.id,
-      content: outcome.output,
-      isError: outcome.isError,
-    })
-
-    await args.onToolResult?.({
-      stepNumber: args.stepNumber,
-      toolCallId: call.id,
-      toolName: call.name,
-      input: call.input,
-      output: outcome.output,
-      isError: outcome.isError,
-      durationMs: Date.now() - toolStartedAt,
-    })
-
-    if (call.name === 'finishSession') {
+  let allToolCallsFailed = args.calls.length > 0
+  let parallelCalls: ToolCall[] = []
+  const markFinished = (outcome: { finished: boolean; finalText?: string }) => {
+    if (outcome.finished) {
       finished = true
-      finalText = outcome.output
+      finalText = outcome.finalText
     }
   }
-  return { finished, finalText }
+  const runParallelCalls = async () => {
+    const batchCalls = parallelCalls
+    parallelCalls = []
+    const batchOutcomes = await Promise.all(
+      batchCalls.map((batchCall) => runSingleToolCall(args, batchCall)),
+    )
+    for (let batchIndex = 0; batchIndex < batchCalls.length; batchIndex++) {
+      const batchCall = batchCalls[batchIndex]!
+      const batchOutcome = batchOutcomes[batchIndex]!
+      if (!batchOutcome.isError) allToolCallsFailed = false
+      markFinished(await appendToolOutcome(args, batchCall, batchOutcome))
+    }
+  }
+  for (const call of args.calls) {
+    if (args.signal?.aborted) break
+    if (CONCURRENCY_SAFE_TOOLS.has(call.name)) {
+      parallelCalls.push(call)
+      continue
+    }
+    await runParallelCalls()
+    if (args.signal?.aborted) break
+    const outcome = await runSingleToolCall(args, call)
+    if (!outcome.isError) allToolCallsFailed = false
+    markFinished(await appendToolOutcome(args, call, outcome))
+  }
+  await runParallelCalls()
+  return { finished, finalText, allToolCallsFailed }
+}
+
+const CONCURRENCY_SAFE_TOOLS = new Set(['readFile', 'listDir', 'grep', 'find'])
+
+async function runSingleToolCall(
+  args: {
+    sandbox: SandboxHandle
+    stepNumber: number
+    readOnly?: boolean
+    signal?: AbortSignal
+    onToolOutput?: RunLoopOptions['onToolOutput']
+  },
+  call: ToolCall,
+): Promise<{ output: string; isError: boolean; durationMs: number }> {
+  const toolStartedAt = Date.now()
+  const outcome = await executeToolCall(args.sandbox, call, {
+    readOnly: args.readOnly,
+    signal: args.signal,
+    onOutput: (chunk) => {
+      args.onToolOutput?.({
+        ...chunk,
+        stepNumber: args.stepNumber,
+        toolCallId: call.id,
+        toolName: call.name,
+      })
+    },
+  })
+  return { ...outcome, durationMs: Date.now() - toolStartedAt }
+}
+
+async function appendToolOutcome(
+  args: {
+    messages: AgentMessage[]
+    onToolResult?: RunLoopOptions['onToolResult']
+    stepNumber: number
+  },
+  call: ToolCall,
+  outcome: { output: string; isError: boolean; durationMs: number },
+): Promise<{ finished: boolean; finalText?: string }> {
+  args.messages.push({
+    role: 'tool_result',
+    toolCallId: call.id,
+    content: outcome.output,
+    isError: outcome.isError,
+  })
+
+  await args.onToolResult?.({
+    stepNumber: args.stepNumber,
+    toolCallId: call.id,
+    toolName: call.name,
+    input: call.input,
+    output: outcome.output,
+    isError: outcome.isError,
+    durationMs: outcome.durationMs,
+  })
+
+  if (call.name === 'finishSession') {
+    return { finished: true, finalText: outcome.output }
+  }
+  return { finished: false }
 }
 
 export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
@@ -137,6 +207,9 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
   let finalText: string | undefined
   let stepNumber = 0
   let lastPromptTokens: number | undefined
+  let previousToolSignature: string | undefined
+  let repeatedSignatureCount = 0
+  let consecutiveErrorBatches = 0
   const totalUsage: NonNullable<ProviderResponse['usage']> = {}
   const toolCallCounts: Record<string, number> = {}
   const accumulateStepUsage = (stepUsage: ProviderResponse['usage']) => {
@@ -154,7 +227,6 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
     }
   }
   const compactionState: LoopCompactionState = createCompactionState()
-  const promptHead = JSON.stringify(messages.slice(0, 2))
   const compaction = opts.compaction && {
     contextWindow: provider.contextWindow,
     ...opts.compaction,
@@ -183,15 +255,12 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
 
     stepNumber++
 
-    opts.onContext?.({ stepNumber, approxTokens: estimateMessagesTokens(messages) })
+    opts.onContext?.({ stepNumber })
 
     if (compaction?.consumeForceCompact?.()) {
       await tryCompactLoop(messages, compaction, compactionState, stepNumber, true)
     }
 
-    if (JSON.stringify(messages.slice(0, 2)) !== promptHead) {
-      throw new Error('[agent-core] prompt head mutated during loop')
-    }
     const stepStartedAt = Date.now()
     const emitToken = (delta: string) => opts.onToken?.({ stepNumber, delta })
     let response: ProviderResponse
@@ -214,6 +283,10 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
       lastPromptTokens = response.usage.inputTokens
     }
     accumulateStepUsage(response.usage)
+    if (opts.maxInputTokens !== undefined && (totalUsage.inputTokens ?? 0) >= opts.maxInputTokens) {
+      stoppedBy = 'token_budget'
+      break
+    }
     if (response.stopReason === 'max_tokens' && compaction) {
       // truncated output is unusable: compact and retry the step instead of stopping
       const recovered = await tryCompactLoop(
@@ -225,6 +298,10 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
         lastPromptTokens,
       )
       if (recovered) continue
+    }
+    if (response.stopReason === 'max_tokens') {
+      stoppedBy = 'max_tokens'
+      break
     }
     const durationMs = Date.now() - stepStartedAt
     messages.push({
@@ -256,7 +333,11 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
       toolCallCounts[toolCall.name] = (toolCallCounts[toolCall.name] ?? 0) + 1
     }
 
-    const { finished, finalText: toolFinalText } = await executeStepTools({
+    const {
+      finished,
+      finalText: toolFinalText,
+      allToolCallsFailed,
+    } = await executeStepTools({
       sandbox,
       calls: response.toolCalls,
       stepNumber,
@@ -270,8 +351,26 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<LoopResult> {
       stoppedBy = 'finish_session'
       finalText = toolFinalText
     }
+    const batchSignature = JSON.stringify(
+      response.toolCalls.map((toolCall) => [toolCall.name, toolCall.input]),
+    )
+    if (batchSignature === previousToolSignature) {
+      repeatedSignatureCount += 1
+    } else {
+      previousToolSignature = batchSignature
+      repeatedSignatureCount = 1
+    }
+    if (repeatedSignatureCount >= MAX_REPEATED_TOOL_BATCH) {
+      messages.push({ role: 'user', content: REPEATED_TOOL_BATCH_NUDGE })
+      repeatedSignatureCount = 0
+    }
     if (opts.signal?.aborted) {
       stoppedBy = 'aborted'
+      break
+    }
+    consecutiveErrorBatches = allToolCallsFailed ? consecutiveErrorBatches + 1 : 0
+    if (consecutiveErrorBatches >= MAX_CONSECUTIVE_TOOL_ERROR_BATCHES) {
+      stoppedBy = 'consecutive_errors'
       break
     }
     if (compaction) {

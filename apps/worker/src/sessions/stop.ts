@@ -42,14 +42,14 @@ export function startStopPolling(
 // save whatever the agent already did, keep the sandbox, and pause.
 export async function finalizeStopped(opts: {
   sessionId: string
-  isAsk: boolean
+  askMode: boolean
   sandbox?: SandboxHandle
   managedSandbox?: ManagedSandbox
   branchName: string
   authUrl: string
 }): Promise<void> {
-  const { sessionId, isAsk, sandbox, managedSandbox, branchName, authUrl } = opts
-  if (!isAsk && sandbox) {
+  const { sessionId, askMode, sandbox, managedSandbox, branchName, authUrl } = opts
+  if (!askMode && sandbox) {
     await pushAndNotify(sandbox, sessionId, branchName, authUrl).catch((error) =>
       log.warn('failed to push branch on stop', {
         sessionId,

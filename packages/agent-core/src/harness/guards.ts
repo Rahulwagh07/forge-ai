@@ -25,8 +25,7 @@ const BLOCKED_COMMAND_PATTERNS: Array<{ re: RegExp; reason: string }> = [
   { re: /:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;?\s*:/, reason: 'fork bomb' },
   { re: /\bmkfs\b|\bdd\s+.*of=\/dev\//, reason: 'disk destroy' },
   { re: /chmod\s+-R\s+777\s+\//, reason: 'chmod root' },
-  { re: /git\s+push\s+.*--force/, reason: 'force push (prompt rule, now enforced)' },
-  { re: /git\s+push\s+.*(-f\b)/, reason: 'force push (prompt rule, now enforced)' },
+  { re: /git\s+push\s+.*(--force|-f\b)/, reason: 'force push (prompt rule, now enforced)' },
   { re: /git\s+(filter-branch|filter-repo)/, reason: 'history rewrite' },
 ]
 

@@ -12,7 +12,7 @@ export interface ToolCall {
 
 type StopReason = 'tool_use' | 'end_turn' | 'max_tokens'
 
-interface ProviderUsage {
+export interface ProviderUsage {
   inputTokens?: number
   outputTokens?: number
   cacheReadTokens?: number
@@ -68,36 +68,85 @@ export class ProviderError extends Error {
   }
 }
 
-//TODO: Verify how provider SDKs represent context-length error
-const OVERFLOW_FALLBACK_PATTERN =
+const OVERFLOW_CODES = new Set(['context_length_exceeded'])
+const RATE_LIMIT_CODES = new Set([
+  'rate_limit_exceeded',
+  'rate_limit_error',
+  'insufficient_quota',
+  'quota_exceeded',
+])
+const OVERFLOW_PATTERN =
   /context_length|maximum context|too many tokens|token limit|context window|out of context|prompt is too long|conversation too long|maximum prompt length|context size|prompt[^.]{0,50}tokens?[^.]{0,30}limit exceeded/i
-
 const RATE_LIMIT_PATTERN =
   /rate.?limit|429|quota|resource_exhausted|temporarily unavailable|please retry|try again later/i
 
-export function extractErrorCodes(err: unknown, depth = 0): string[] {
-  if (depth > 3 || typeof err !== 'object' || err === null) return []
+interface ErrorDetails {
+  codes: string[]
+  status?: number
+}
+
+function inspectError(
+  err: unknown,
+  depth = 0,
+  details: ErrorDetails = { codes: [] },
+): ErrorDetails {
+  if (depth > 3 || typeof err !== 'object' || err === null) return details
   const record = err as Record<string, unknown>
-  const out: string[] = []
+  if (details.status === undefined && typeof record.status === 'number') {
+    details.status = record.status
+  }
   for (const key of ['code', 'type'] as const) {
     const value = record[key]
-    if (typeof value === 'string') out.push(value)
+    if (typeof value === 'string') details.codes.push(value)
   }
   for (const key of ['error', 'cause', 'data'] as const) {
     const nested = record[key]
-    if (typeof nested === 'string') out.push(...extractErrorCodes({ code: nested }, depth + 1))
-    else if (typeof nested === 'object' && nested !== null)
-      out.push(...extractErrorCodes(nested, depth + 1))
+    if (typeof nested === 'string') details.codes.push(nested)
+    else if (typeof nested === 'object' && nested !== null) inspectError(nested, depth + 1, details)
   }
-  return out
+  return details
+}
+
+function errorText(err: unknown): string {
+  const message = err instanceof Error ? err.message : ''
+  if (typeof err !== 'object' || err === null) return `${message} ${String(err)}`
+  try {
+    return `${message} ${JSON.stringify(err)}`
+  } catch {
+    return message
+  }
+}
+
+export function classifyProviderError(err: unknown): {
+  codes: string[]
+  status?: number
+  isContextOverflow: boolean
+  isRateLimit: boolean
+} {
+  if (err instanceof ProviderError) {
+    return {
+      codes: err.code ? [err.code] : [],
+      status: err.status,
+      isContextOverflow: err.category === 'context-overflow',
+      isRateLimit: err.category === 'rate-limit',
+    }
+  }
+  const details = inspectError(err)
+  const codes = details.codes.map((code) => code.toLowerCase())
+  const isRateLimit =
+    details.status === 429 ||
+    codes.some((code) => RATE_LIMIT_CODES.has(code)) ||
+    RATE_LIMIT_PATTERN.test(errorText(err))
+  return {
+    codes: details.codes,
+    status: details.status,
+    isContextOverflow:
+      codes.some((code) => OVERFLOW_CODES.has(code)) ||
+      (!isRateLimit && OVERFLOW_PATTERN.test(errorText(err))),
+    isRateLimit,
+  }
 }
 
 export function isContextOverflowError(err: unknown): boolean {
-  if (err instanceof ProviderError) return err.category === 'context-overflow'
-  const codes = extractErrorCodes(err).join(' ').toLowerCase()
-  if (codes.includes('context_length_exceeded')) return true
-  if (/rate_limit|rate-limit|insufficient_quota|quota/.test(codes)) return false
-  const msg = err instanceof Error ? err.message : String(err)
-  if (RATE_LIMIT_PATTERN.test(msg)) return false
-  return OVERFLOW_FALLBACK_PATTERN.test(msg)
+  return classifyProviderError(err).isContextOverflow
 }

@@ -1,5 +1,6 @@
 import { createAppAuth } from '@octokit/auth-app'
 import { Octokit } from 'octokit'
+import type { RepoRef } from './repo-ref.ts'
 
 /**
  * GitHub App auth
@@ -9,7 +10,7 @@ import { Octokit } from 'octokit'
  * embedded into the git clone URL
  */
 
-interface GitHubAppConfig {
+export interface GitHubAppConfig {
   appId: string
   privateKey: string
 }
@@ -38,11 +39,6 @@ export function appOctokit(config: GitHubAppConfig, installationId?: number): Oc
   })
 }
 
-export interface RepoRef {
-  owner: string
-  repo: string
-}
-
 export async function mintInstallationToken(
   config: GitHubAppConfig,
   repo: RepoRef,
@@ -69,8 +65,4 @@ export async function mintInstallationToken(
 
 export function installationOctokit(token: string): Octokit {
   return new Octokit({ auth: token })
-}
-
-export function tokenEmbedUrl(token: string, repo: RepoRef): string {
-  return `https://x-access-token:${token}@github.com/${repo.owner}/${repo.repo}.git`
 }

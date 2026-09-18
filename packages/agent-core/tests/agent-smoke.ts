@@ -8,17 +8,18 @@ import {
   installationOctokit,
   loadAppConfigFromEnv,
   mintInstallationToken,
+  parseRepoRef,
   tokenEmbedUrl,
 } from '@repo/github'
-import { OpenAIProvider, runAgentLoop } from '../src/index.ts'
+import { OpenCodeProvider, runAgentLoop } from '../src/index.ts'
 
 const REPO_URL = process.env.TEST_REPO_URL
 if (!REPO_URL) {
   console.error('TEST_REPO_URL is not defined')
   process.exit(1)
 }
-if (!process.env.OPENAI_API_KEY && !process.env.OPENROUTER_API_KEY) {
-  console.error('OPENAI_API_KEY or OPENROUTER_API_KEY is required')
+if (!process.env.OPENCODE_API_KEY) {
+  console.error('OPENCODE_API_KEY is required')
   process.exit(1)
 }
 
@@ -69,12 +70,9 @@ async function main(): Promise<void> {
 
   try {
     const result = await runAgentLoop({
-      provider: new OpenAIProvider({
+      provider: new OpenCodeProvider({
         credentials: {
-          OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-          OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
-          OPENAI_MODEL: process.env.OPENAI_MODEL,
-          OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+          OPENCODE_API_KEY: process.env.OPENCODE_API_KEY,
         },
       }),
       sandbox,
@@ -135,14 +133,6 @@ async function main(): Promise<void> {
 async function defaultBranch(sandbox: SandboxHandle): Promise<string> {
   const res = await sandbox.runCommand(`git rev-parse --abbrev-ref origin/HEAD | sed 's|origin/||'`)
   return res.stdout.trim() || 'main'
-}
-
-function parseRepoRef(cloneUrl: string): { owner: string; repo: string } {
-  const match = /github\.com[/:]([^/]+)\/([^/.]+)/.exec(cloneUrl)
-  if (!match) {
-    throw new Error(`cannot parse owner/repo from: ${cloneUrl}`)
-  }
-  return { owner: match[1]!, repo: match[2]! }
 }
 
 main().catch((err) => {

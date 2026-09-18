@@ -3,7 +3,8 @@ export {
   installationOctokit,
   loadAppConfigFromEnv,
   mintInstallationToken,
-  tokenEmbedUrl,
 } from './app-auth.ts'
-export type { RepoRef } from './app-auth.ts'
+export { parseRepoRef, tokenEmbedUrl } from './repo-ref.ts'
+export type { GitHubAppConfig } from './app-auth.ts'
+export type { RepoRef } from './repo-ref.ts'
 export { findOrCreatePr } from './pr.ts'

@@ -1,18 +1,12 @@
 import type { SandboxHandle } from '@repo/sandbox'
-import type { FileOps, LoopResult } from '@repo/agent-core'
-import type { ManagedSandbox } from '../../sandbox/manager.ts'
-
-export const STORED_TOOL_OUTPUT_CHARS = 20000
-export const RESUME_HISTORY_LIMIT = 200
-export const RESUME_TOOL_OUTPUT_CHARS = 8000
+import type { LoopResult } from '@repo/agent-core'
 
 export interface AgentLoopContext {
   sessionId: string
   prompt: string
-  isAsk: boolean
-  defaultBranch: string
+  askMode: boolean
+  baseBranch: string
   sandbox: SandboxHandle
-  managedSandbox: ManagedSandbox
   authUrl: string
   signal: AbortSignal
 }
@@ -22,7 +16,9 @@ export interface AgentLoopOutcome {
   commitRequested: boolean
 }
 
-export interface CompactionTracker {
-  previousSummary: string | undefined
-  cumulativeFileOps: FileOps
+export interface SessionLoopState {
+  commitRequested: boolean
+  hasFetchedDiffBase: boolean
+  latestStepNumber: number
+  forceCompactionRequested: boolean
 }
