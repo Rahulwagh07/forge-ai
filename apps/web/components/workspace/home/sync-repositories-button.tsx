@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { syncRepositories } from '@/lib/api'
-import { API } from '@/lib/constants'
+import { ApiError, syncRepositories } from '@/lib/api'
 
 export function SyncRepositoriesButton() {
   const [syncing, setSyncing] = useState(false)
@@ -15,7 +14,13 @@ export function SyncRepositoriesButton() {
       await syncRepositories()
       window.location.reload()
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Repository sync failed')
+      if (error instanceof ApiError && error.status === 404) {
+        setError(
+          'No GitHub installation found yet. Click Connect GitHub above and approve access, then try again.',
+        )
+      } else {
+        setError('Repository sync failed. Please try again.')
+      }
     } finally {
       setSyncing(false)
     }
@@ -33,8 +38,7 @@ export function SyncRepositoriesButton() {
       </button>
       {error ? (
         <p role="alert" className="max-w-sm text-sm leading-5 text-destructive">
-          {error}. Install the GitHub App through the button above and make sure its Setup URL is
-          configured to <code>{API.githubCallback}</code>.
+          {error}
         </p>
       ) : null}
     </div>

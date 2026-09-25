@@ -1,4 +1,4 @@
-import axios from 'axios'
+import axios, { isAxiosError } from 'axios'
 import { API } from './constants'
 
 export type SessionSummary = {
@@ -11,9 +11,29 @@ export type SessionSummary = {
 
 type RequeueResult = { sessionId: string; status: string; queued: boolean }
 
+export class ApiError extends Error {
+  status?: number
+
+  constructor(message: string, status?: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
 async function request<T>(url: string, init?: Record<string, unknown>): Promise<T> {
-  const response = await axios(url, init)
-  return response.data as T
+  try {
+    const response = await axios(url, init)
+    return response.data as T
+  } catch (error) {
+    if (isAxiosError(error)) {
+      const data = error.response?.data as { error?: unknown } | undefined
+      const message =
+        typeof data?.error === 'string' && data.error.length > 0 ? data.error : error.message
+      throw new ApiError(message, error.response?.status)
+    }
+    throw error
+  }
 }
 
 export function sessionStreamUrl(sessionId: string): string {
