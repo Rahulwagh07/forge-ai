@@ -7,7 +7,7 @@ export function PullRequestCard({ pr }: { pr: PullRequestInfo }) {
   const iconColor =
     pr.state === 'closed' ? 'text-danger' : pr.state === 'merged' ? 'text-merged' : 'text-success'
   return (
-    <div className="mt-3 rounded-xl border bg-card p-3 shadow-sm">
+    <div className="mt-3 rounded-xl border bg-muted/50 p-3">
       <div className="flex items-center gap-2 text-sm">
         <HugeiconsIcon icon={GitBranchIcon} size={14} className={iconColor} />
         <span className="font-semibold">Changes ready for review</span>
@@ -29,7 +29,7 @@ export function PullRequestCard({ pr }: { pr: PullRequestInfo }) {
           href={pr.url}
           target="_blank"
           rel="noreferrer"
-          className="rounded-md px-2.5 py-1.5 text-sm font-medium btn-google outline-none"
+          className="rounded-md bg-neutral-950 px-2.5 py-1.5 text-sm font-medium text-white outline-none hover:bg-neutral-950/90 dark:bg-white dark:text-neutral-950 dark:hover:bg-white/90"
         >
           Review pull request
         </a>

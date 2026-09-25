@@ -208,8 +208,8 @@ export function WorkspaceLayout({
 
   if (isAsk) {
     return (
-      <div className="relative min-h-0 flex-1 overflow-hidden">
-        <div className="absolute inset-0 overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           <ActivityFeed
             items={chatItems}
             showThinking={isThinking}
@@ -217,10 +217,10 @@ export function WorkspaceLayout({
             waitingOnUser={waitingOnUser}
             onWake={handleWake}
           />
-          <div ref={bottomRef} className="h-36" />
+          <div ref={bottomRef} />
         </div>
-        <div className="absolute inset-x-0 bottom-0 z-10 p-3">
-          <div className="mx-auto w-full max-w-3xl">
+        <div className="shrink-0 pb-3">
+          <div className="mx-auto w-full max-w-3xl px-4">
             <Composer
               status={status}
               onSend={handleSend}

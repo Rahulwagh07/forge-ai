@@ -35,7 +35,6 @@ export function TerminalPanel({ entries }: { entries: TerminalEntry[] }) {
         ref={scrollRef}
         onScroll={handleScroll}
         className="min-h-0 flex-1 overflow-y-auto p-3 font-mono text-terminal leading-terminal"
-        style={{ fontFamily: 'var(--font-geist-mono), ui-monospace, monospace' }}
       >
         {visible.length === 0 ? (
           <div className="grid h-full place-items-center text-center text-sm text-muted-foreground">

@@ -65,7 +65,7 @@ export function ActivityFeed({
     if (item.role === 'user') {
       nodes.push(
         <div key={item.id} className="mt-4 flex justify-end">
-          <div className="max-w-[75%] rounded-lg bg-chat-input px-3 py-[7px] text-[14px] leading-[20px] text-foreground outline-none">
+          <div className="max-w-[75%] rounded-lg bg-muted px-3 py-[7px] text-[14px] leading-[20px] text-foreground outline-none">
             <MessageContent text={item.text ?? ''} />
           </div>
         </div>,

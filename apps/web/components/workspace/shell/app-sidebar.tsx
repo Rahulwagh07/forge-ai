@@ -6,6 +6,7 @@ import { useHotkeys } from 'react-hotkeys-hook'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Add01Icon, PanelLeftIcon, Search01Icon } from '@hugeicons/core-free-icons'
 import { LogoutButton } from '@/components/workspace/shell/logout-button'
+import { ThemeToggle } from '@/components/workspace/shell/theme-toggle'
 import { SearchDialog } from '@/components/workspace/shell/search-dialog'
 import { SessionMenu } from '@/components/workspace/shell/session-menu'
 import {
@@ -156,6 +157,7 @@ function SidebarBody({
             <div className="truncate text-sm font-medium">{user?.name ?? 'User'}</div>
             <div className="truncate text-xs text-muted-foreground">{user?.email ?? ''}</div>
           </div>
+          <ThemeToggle />
           <LogoutButton />
         </div>
       </SidebarFooter>
@@ -307,7 +309,7 @@ export function AppSidebar({
         <div
           onMouseEnter={openPeek}
           onMouseLeave={closePeek}
-          className={`fixed inset-y-0 left-0 z-40 hidden w-80 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-[0_0.5rem_1.875rem_rgb(0_0_0/0.5)] transition-[transform,opacity] duration-200 ease-out md:flex ${peekShown ? 'translate-x-0 opacity-100' : '-translate-x-8 opacity-0'}`}
+          className={`fixed inset-y-0 left-0 z-40 hidden w-80 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[transform,opacity] duration-200 ease-out md:flex ${peekShown ? 'translate-x-0 opacity-100' : '-translate-x-8 opacity-0'}`}
         >
           {sidebarBody}
         </div>

@@ -2,12 +2,12 @@ import { getSession } from '@/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@repo/db'
 import { HomeChat } from '@/components/workspace/home/home-chat'
-import { SignIn } from '@/components/workspace/home/sign-in'
+import { LandingPage } from '@/components/landing/landing-page'
 
 export default async function Home() {
   const session = await getSession()
   if (!session?.user) {
-    return <SignIn />
+    return <LandingPage />
   }
 
   const userId = session.userId

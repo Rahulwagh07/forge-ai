@@ -112,7 +112,7 @@ export function Composer({
   }
 
   return (
-    <div className="relative rounded-2xl border border-border bg-chat-input p-2 shadow-sm">
+    <div className="relative rounded-2xl border border-border p-2">
       {open ? (
         <div className="absolute inset-x-3 bottom-full mb-1 overflow-hidden rounded-md bg-popover text-sm text-popover-foreground shadow-md outline-none">
           {matches.map((cmd, i) => (
