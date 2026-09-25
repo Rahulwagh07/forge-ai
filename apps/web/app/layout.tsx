@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { cookies } from 'next/headers'
 import './globals.css'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -58,8 +59,11 @@ export default async function RootLayout({
       }))
     : []
 
+  const cookieStore = await cookies()
+  const theme = cookieStore.get('forge-theme')?.value === 'dark' ? 'dark' : 'light'
+
   return (
-    <html lang="en" suppressHydrationWarning className="font-sans">
+    <html lang="en" suppressHydrationWarning className={`font-sans ${theme}`}>
       <body suppressHydrationWarning className="bg-background text-foreground">
         <TooltipProvider>
           {session?.user && userId ? (

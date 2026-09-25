@@ -8,16 +8,23 @@ export function ThemeToggle() {
   const [dark, setDark] = useState(false)
 
   useEffect(() => {
-    const isDark = window.localStorage.getItem('forge-theme') === 'dark'
+    let isDark = document.documentElement.classList.contains('dark')
+    if (!document.cookie.includes('forge-theme=')) {
+      if (window.localStorage.getItem('forge-theme') === 'dark') {
+        isDark = true
+        document.documentElement.classList.add('dark')
+        document.cookie = 'forge-theme=dark; path=/; max-age=31536000; SameSite=Lax'
+      }
+      window.localStorage.removeItem('forge-theme')
+    }
     setDark(isDark)
-    document.documentElement.classList.toggle('dark', isDark)
   }, [])
 
   function toggle() {
     const next = !dark
     setDark(next)
-    window.localStorage.setItem('forge-theme', next ? 'dark' : 'light')
     document.documentElement.classList.toggle('dark', next)
+    document.cookie = `forge-theme=${next ? 'dark' : 'light'}; path=/; max-age=31536000; SameSite=Lax`
   }
 
   return (
