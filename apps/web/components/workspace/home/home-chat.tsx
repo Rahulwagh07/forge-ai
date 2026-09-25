@@ -116,13 +116,15 @@ export function HomeChat({
         </div>
         <div className="mx-auto w-full max-w-3xl">
           <Composer
-            onSend={async () => {}}
+            onSend={async (msg) => {
+              if (!msg.trim()) return
+              router.push('/connect-github')
+            }}
             placeholder={
               mode === 'agent'
                 ? 'Ask an agent to do the work for you'
                 : 'Ask Forge questions about your code'
             }
-            disabled
           />
         </div>
         <div className="mt-3 flex justify-center">
