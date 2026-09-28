@@ -5,7 +5,7 @@ import { GithubIcon } from '@hugeicons/core-free-icons'
 import { prisma } from '@repo/db'
 import { SyncRepositoriesButton } from '@/components/workspace/home/sync-repositories-button'
 import { syncUserGithubInstallations } from '@/lib/github-sync'
-import { API, GITHUB_INSTALLATIONS_URL } from '@/lib/constants'
+import { GITHUB_INSTALLATIONS_URL } from '@/lib/constants'
 import { env } from '@/env'
 import { log } from '@/lib/log'
 
@@ -45,7 +45,6 @@ export default async function ConnectGithubPage() {
   }
 
   const slug = env.GITHUB_APP_SLUG
-  const callbackUrl = `${env.NEXTAUTH_URL}${API.githubCallback}`
   const installUrl = slug
     ? `https://github.com/apps/${slug}/installations/new`
     : GITHUB_INSTALLATIONS_URL
@@ -72,9 +71,6 @@ export default async function ConnectGithubPage() {
           repository and start your first session when you return.
         </p>
         <SyncRepositoriesButton />
-        <p className="mt-5 max-w-sm text-xs leading-5 text-muted-foreground/70">
-          GitHub App Setup URL: <code>{callbackUrl}</code>
-        </p>
       </div>
     </main>
   )
