@@ -20,7 +20,10 @@ export function LoginButton({
         {label}
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="border-0 bg-white p-8 text-brand-text-primary shadow-2xl ring-0">
+        <DialogContent
+          className="border-0 bg-white p-8 text-neutral-900 shadow-2xl ring-0"
+          closeButtonClassName="text-neutral-900 hover:bg-neutral-100 hover:text-neutral-900"
+        >
           <DialogTitle className="font-[var(--font-marketing)] text-xl font-normal">
             Log in to Forge
           </DialogTitle>

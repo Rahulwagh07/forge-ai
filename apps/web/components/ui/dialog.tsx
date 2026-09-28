@@ -41,9 +41,11 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  closeButtonClassName,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
+  closeButtonClassName?: string
 }) {
   return (
     <DialogPortal>
@@ -60,7 +62,13 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
-            render={<Button variant="ghost" className="absolute top-2 right-2" size="icon-sm" />}
+            render={
+              <Button
+                variant="ghost"
+                className={cn('absolute top-2 right-2', closeButtonClassName)}
+                size="icon-sm"
+              />
+            }
           >
             <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
             <span className="sr-only">Close</span>
