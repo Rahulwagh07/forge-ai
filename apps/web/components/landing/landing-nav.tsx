@@ -11,12 +11,14 @@ const LINKS = [
 
 export function ForgeMark() {
   return (
-    <span
-      className="inline-flex size-5 items-center justify-center rounded bg-brand-text-primary font-[var(--font-marketing)] text-xs font-bold leading-none text-brand-background"
+    <img
+      src="/logo-mark.png"
+      alt=""
+      width={24}
+      height={24}
+      className="size-6 shrink-0 object-contain"
       aria-hidden="true"
-    >
-      F
-    </span>
+    />
   )
 }
 
