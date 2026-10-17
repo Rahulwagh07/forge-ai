@@ -44,9 +44,19 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       branches: branches.map((branch) => branch.name),
     })
   } catch (error) {
+    const status = (error as { status?: number }).status
     log.error('failed to list branches', {
+      repoId,
+      installationId: repo.installation.installationId,
+      status,
       error: error instanceof Error ? error.message : String(error),
     })
+    if (status === 404) {
+      return NextResponse.json(
+        { error: 'GitHub App installation not found. Please reinstall the GitHub App.' },
+        { status: 404 },
+      )
+    }
     return NextResponse.json({ error: 'Failed to list branches' }, { status: 500 })
   }
 }

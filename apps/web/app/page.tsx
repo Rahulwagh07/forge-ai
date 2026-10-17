@@ -19,6 +19,7 @@ export default async function Home() {
   })
   const installation = await prisma.githubInstallation.findFirst({
     where: { userId },
+    orderBy: { createdAt: 'desc' },
     select: { installationId: true },
   })
 
