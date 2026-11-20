@@ -1,0 +1,21 @@
+{
+  "name": "forge-e2e-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:headless": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "@repo/github": "workspace:*",
+    "@repo/sandbox": "workspace:*",
+    "@types/node": "^22.15.3",
+    "@types/tar-stream": "^3.1.5",
+    "dotenv": "^17.4.2",
+    "next-auth": "^5.0.0-beta.32"
+  }
+}

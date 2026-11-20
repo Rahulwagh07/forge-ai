@@ -1,0 +1,10 @@
+{
+  "overrides": [
+    {
+      "files": ["fixtures.ts"],
+      "rules": {
+        "no-empty-pattern": "off"
+      }
+    }
+  ]
+}
