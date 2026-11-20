@@ -11,7 +11,8 @@
     "check-types": "turbo run check-types",
     "prepare": "husky",
     "sandbox:image": "docker build -t forge-sandbox:latest .",
-    "sandbox:smoke": "bun run --cwd packages/sandbox smoke"
+    "sandbox:smoke": "bun run --cwd packages/sandbox smoke",
+    "test:e2e": "bun run --cwd e2e-tests test"
   },
   "devDependencies": {
     "husky": "^9.1.7",
@@ -31,7 +32,8 @@
   },
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "e2e-tests"
   ],
   "dependencies": {
     "dotenv": "^17.4.2"
