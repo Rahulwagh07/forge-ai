@@ -1,5 +1,5 @@
 export const OPENCODE_GO_BASE_URL = 'https://opencode.ai/zen/go/v1'
-export const OPENCODE_GO_DEFAULT_MODEL = 'mimo-v2.5'
+export const OPENCODE_GO_DEFAULT_MODEL = 'mimo-v2.6-flash'
 export const MAX_TOOL_OUTPUT_CHARS = 10_000
 export const TOOL_OUTPUT_OVERFLOW_CHARS = 20_000
 export const TOOL_OUTPUT_PREVIEW_CHARS = 8000
