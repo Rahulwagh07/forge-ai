@@ -25,12 +25,16 @@ export const SESSION_URL_PATTERN = /\/sessions\/[A-Za-z0-9]+$/
 
 export async function createSessionViaHome(
   page: Page,
-  input: { prompt: string; mode: SessionMode },
+  input: { prompt: string; mode: SessionMode; baseBranch?: string },
 ): Promise<void> {
   await page.goto('/')
   await page.getByRole('button', { name: MODE_LABEL[input.mode], exact: true }).click()
   await page.getByRole('button', { name: 'Repository' }).click()
   await page.getByRole('menuitem').filter({ hasText: TEST_REPO_FULL_NAME }).click()
+  if (input.baseBranch) {
+    await page.locator('button[aria-label="Base branch"]').click()
+    await page.getByRole('option', { name: input.baseBranch, exact: true }).click()
+  }
 
   const liveUpdatesOpened = page.waitForResponse(
     (response) =>
